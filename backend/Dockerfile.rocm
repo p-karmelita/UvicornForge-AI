@@ -1,0 +1,20 @@
+# ROCm-enabled Dockerfile for UnicornForge AI backend (for AMD GPUs)
+# NOTE: Use a ROCm-enabled base image from your registry or AMD's PyTorch/ROCm images.
+# This file provides an example and may require adjustments per ROCm/PyTorch versions.
+
+FROM pytorch/pytorch:2.2.0-rocm
+WORKDIR /app
+
+# Install runtime deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY backend/requirements.txt ./backend/requirements.txt 2>/dev/null || true
+RUN pip install --no-cache-dir -r backend/requirements.txt 2>/dev/null || \
+    pip install --no-cache-dir fastapi uvicorn pydantic
+
+COPY backend /app/backend
+
+EXPOSE 8000
+CMD ["python", "-m", "uvicorn", "backend.app:app", "--host", "0.0.0.0", "--port", "8000"]

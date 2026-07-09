@@ -67,6 +67,7 @@
 <body>
     <h1>UnicornForge AI</h1>
     <p class="subtitle">Turn a rough idea into a structured startup brief in one click.</p>
+    <p style="font-size:0.9rem; color:#f59e0b; margin-top:0.25rem;">Unicorn Track-ready: build with AMD GPUs or Fireworks AI credits — focus on product & pitch, not benchmarks.</p>
 
     <div class="container">
         <section class="panel">
@@ -119,13 +120,58 @@
         }
 
         function toMarkdown(brief) {
-            return [
+            const lines = [
                 `# ${brief.project_name}`,
                 "",
                 `**One-sentence pitch**`,
                 "",
                 brief.one_sentence_pitch,
+            ];
+
+            if (brief.success_score !== null && brief.success_score !== undefined) {
+                lines.push("", `**Predicted hackathon success score (0-1):** ${brief.success_score.toFixed(2)}`);
+            }
+
+            lines.push(
                 "",
+                `## Problem`,
+                "",
+                brief.problem,
+                "",
+                `## Solution`,
+                "",
+                brief.solution,
+                "",
+                `## Target market`,
+                "",
+                brief.target_market,
+                "",
+                `## MVP scope`,
+                "",
+                brief.mvp_scope,
+                "",
+                `## Key features`,
+                "",
+                brief.key_features,
+                "",
+                `## Demo scenario`,
+                "",
+                brief.demo_scenario,
+                "",
+                `## Business model`,
+                "",
+                brief.business_model,
+                "",
+                `## Why this project can win a hackathon`,
+                "",
+                brief.why_it_can_win,
+            );
+
+            // Add Unicorn Track / AMD blurb
+            lines.push("", "---", "", "Built for the Unicorn Track: demonstrate creativity using AMD GPUs or Fireworks AI credits. Showcase product potential, not benchmarks.");
+
+            return lines.join("\n");
+        }                "",
                 `## Problem`,
                 "",
                 brief.problem,
@@ -182,9 +228,14 @@
                     throw new Error(errData.detail || "Unexpected error from backend.");
                 }
 
-                const brief = await response.json();
+                    const brief = await response.json();
                 outputEl.textContent = toMarkdown(brief);
-                statusEl.textContent = "Done.";
+                // show success score if present
+                if (brief.success_score !== null && brief.success_score !== undefined) {
+                    statusEl.textContent = `Done. Predicted success score: ${brief.success_score.toFixed(2)}.`;
+                } else {
+                    statusEl.textContent = "Done.";
+                }
             } catch (err) {
                 console.error(err);
                 statusEl.textContent = "Error: " + (err.message || "please try again.");
