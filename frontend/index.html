@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>UnicornForge AI – Startup Brief Generator</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            margin: 0;
+            padding: 1.5rem;
+            font-family: system-ui, sans-serif;
+            background: #0b1120;
+            color: #f9fafb;
+        }
+        h1 { margin-top: 0; }
+        .subtitle { color: #9ca3af; margin-bottom: 1rem; }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+        .panel {
+            flex: 1 1 320px;
+            padding: 1rem;
+            border-radius: 8px;
+            background: #020617;
+            border: 1px solid #1f2937;
+        }
+        label { display: block; margin-top: 0.5rem; margin-bottom: 0.25rem; }
+        textarea, input {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 1px solid #374151;
+            background: #020617;
+            color: #f9fafb;
+        }
+        button {
+            margin-top: 0.75rem;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            background: #f97316;
+            color: #111827;
+            font-weight: 600;
+        }
+        pre {
+            white-space: pre-wrap;
+            background: #020617;
+            padding: 0.75rem;
+            border-radius: 4px;
+            border: 1px solid #1f2937;
+            max-height: 70vh;
+            overflow: auto;
+        }
+        #status {
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+        @media (max-width: 768px) {
+            .container { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <h1>UnicornForge AI</h1>
+    <p class="subtitle">Turn a rough idea into a structured startup brief in one click.</p>
+
+    <div class="container">
+        <section class="panel">
+            <h2>Input</h2>
+
+            <label for="project_idea">Project idea *</label>
+            <textarea id="project_idea" rows="4"
+                      placeholder="Describe your idea in a few sentences…"></textarea>
+
+            <label for="target_users">Target users (optional)</label>
+            <input id="target_users" type="text" placeholder="e.g. hackathon teams, students, founders">
+
+            <label for="industry">Industry (optional)</label>
+            <input id="industry" type="text" placeholder="e.g. education, healthcare, productivity">
+
+            <label for="available_time">Available time (optional)</label>
+            <input id="available_time" type="text" placeholder="e.g. 24 hours, one weekend">
+
+            <label for="available_technologies">Available technologies (optional)</label>
+            <input id="available_technologies" type="text"
+                   placeholder="e.g. AMD GPUs, Fireworks AI API, Python">
+
+            <button id="generate_btn">Generate Startup Brief</button>
+            <div id="status"></div>
+        </section>
+
+        <section class="panel">
+            <h2>Generated Startup Brief</h2>
+            <button id="copy_btn" type="button">Copy as Markdown</button>
+            <pre id="output">(Waiting for input...)</pre>
+        </section>
+    </div>
+
+    <script>
+        const apiBaseUrl = "http://localhost:8000";
+
+        const generateBtn = document.getElementById("generate_btn");
+        const copyBtn = document.getElementById("copy_btn");
+        const statusEl = document.getElementById("status");
+        const outputEl = document.getElementById("output");
+
+        function getFormData() {
+            return {
+                project_idea: document.getElementById("project_idea").value.trim(),
+                target_users: document.getElementById("target_users").value.trim() || null,
+                industry: document.getElementById("industry").value.trim() || null,
+                available_time: document.getElementById("available_time").value.trim() || null,
+                available_technologies: document.getElementById("available_technologies").value.trim() || null,
+            };
+        }
+
+        function toMarkdown(brief) {
+            return [
+                `# ${brief.project_name}`,
+                "",
+                `**One-sentence pitch**`,
+                "",
+                brief.one_sentence_pitch,
+                "",
+                `## Problem`,
+                "",
+                brief.problem,
+                "",
+                `## Solution`,
+                "",
+                brief.solution,
+                "",
+                `## Target market`,
+                "",
+                brief.target_market,
+                "",
+                `## MVP scope`,
+                "",
+                brief.mvp_scope,
+                "",
+                `## Key features`,
+                "",
+                brief.key_features,
+                "",
+                `## Demo scenario`,
+                "",
+                brief.demo_scenario,
+                "",
+                `## Business model`,
+                "",
+                brief.business_model,
+                "",
+                `## Why this project can win a hackathon`,
+                "",
+                brief.why_it_can_win,
+            ].join("\n");
+        }
+
+        async function generateBrief() {
+            const data = getFormData();
+            if (!data.project_idea) {
+                alert("Project idea is required.");
+                return;
+            }
+
+            generateBtn.disabled = true;
+            statusEl.textContent = "Generating your startup brief…";
+
+            try {
+                const response = await fetch(`${apiBaseUrl}/generate-brief`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(data),
+                });
+
+                if (!response.ok) {
+                    const errData = await response.json().catch(() => ({}));
+                    throw new Error(errData.detail || "Unexpected error from backend.");
+                }
+
+                const brief = await response.json();
+                outputEl.textContent = toMarkdown(brief);
+                statusEl.textContent = "Done.";
+            } catch (err) {
+                console.error(err);
+                statusEl.textContent = "Error: " + (err.message || "please try again.");
+            } finally {
+                generateBtn.disabled = false;
+            }
+        }
+
+        async function copyMarkdown() {
+            const text = outputEl.textContent || "";
+            if (!text || text === "(Waiting for input...)") {
+                statusEl.textContent = "Nothing to copy yet.";
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(text);
+                statusEl.textContent = "Copied Markdown to clipboard.";
+            } catch (err) {
+                console.error(err);
+                statusEl.textContent = "Could not copy to clipboard.";
+            }
+        }
+
+        generateBtn.addEventListener("click", generateBrief);
+        copyBtn.addEventListener("click", copyMarkdown);
+    </script>
+</body>
+</html>
