@@ -1,0 +1,13 @@
+# Python env
+.venv/
+__pycache__/
+*.pyc
+
+# Local datasets
+backend/global-startup-success-dataset/
+*.csv
+
+# Trained models (large binaries)
+backend/trained_models/
+*.pt
+*.pkl
