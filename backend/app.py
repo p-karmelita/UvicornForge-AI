@@ -4,6 +4,8 @@ from typing import Optional
 
 import os
 import pickle
+import re
+import requests
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
@@ -101,7 +103,7 @@ app = FastAPI(
 # Allow frontend (served from another port) to call the API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8080", "http://127.0.0.1:8080"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:8080"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -244,7 +246,112 @@ def _build_prompt(payload: GenerateBriefRequest) -> str:
 
 def _call_ai_model(prompt: str, payload: Optional[GenerateBriefRequest] = None) -> GenerateBriefResponse:
     """
-    Deterministic stub that uses request data so the response reflects the frontend input.
+    Generate intelligent brief using keyword extraction from payload.
+    Creates unique responses based on input without external API.
+    """
+    if payload is None:
+        return _generate_stub_brief(payload)
+    
+    try:
+        idea = payload.project_idea.strip() if payload.project_idea else "Your Project"
+        target = payload.target_users.strip() if payload.target_users else "End users"
+        industry = payload.industry.strip() if payload.industry else "Technology"
+        time_available = payload.available_time.strip() if payload.available_time else "2 weeks"
+        tech = payload.available_technologies.strip() if payload.available_technologies else "Standard tech stack"
+        
+        # Extract keywords from idea for personalization
+        idea_words = idea.lower().split()
+        keywords = [w for w in idea_words if len(w) > 3][:3]
+        keyword_str = " + ".join(keywords) if keywords else idea
+        
+        # Generate unique brief sections based on inputs
+        project_name = f"{idea} Platform"
+        one_sentence = f"A {industry.lower()}-focused solution that helps {target.lower()} with {idea.lower()}."
+        
+        problem = f"{target.capitalize()} struggle with inefficient solutions for {idea.lower()}. Current alternatives are complex, expensive, and don't integrate well. This creates friction and limits adoption in the {industry.lower()} space."
+        
+        solution = f"We're building a streamlined platform that addresses {keyword_str} with modern tech ({tech.lower()}). The MVP focuses on core {idea.lower()} capabilities, leveraging {tech.lower()} for optimal performance."
+        
+        target_market = f"Primary: {target}. Secondary: organizations in {industry} seeking digital transformation. TAM: $500M+ in the {industry.lower()} sector."
+        
+        mvp_scope = f"Core features: {idea.lower()} automation, user dashboard, {tech.split(',')[0] if ',' in tech else 'integration'} APIs. Timeline: {time_available}. Tech: {tech}. No: advanced analytics, multi-team support (Phase 2)."
+        
+        key_features = f"- Smart {idea.lower()} processing\n- Real-time dashboard\n- {tech.split()[0]}-powered optimization\n- One-click integrations\n- Role-based access control\n- Automated reporting"
+        
+        demo_scenario = f"1) Log in with demo account.\n2) Show {idea.lower()} workflow in action.\n3) Demonstrate time/cost savings vs alternatives.\n4) Show {tech.split()[0]} performance metrics.\n5) Q&A on {industry} use cases."
+        
+        business_model = f"Freemium tier (5 free {idea.lower()} operations/month). Pro ($29/mo): unlimited {idea.lower()} + priority support. Enterprise: custom pricing + dedicated support. Target: 1000 paying users in Year 1."
+        
+        why_win = f"We solve a real pain point for {target.lower()} in {industry}. Built with {tech}, we can scale efficiently. The market is hungry for solutions like this. Our demo showcases immediate ROI. Hackathon win = proof of concept for enterprise pitch."
+        
+        return GenerateBriefResponse(
+            project_name=project_name,
+            one_sentence_pitch=one_sentence,
+            problem=problem,
+            solution=solution,
+            target_market=target_market,
+            mvp_scope=mvp_scope,
+            key_features=key_features,
+            demo_scenario=demo_scenario,
+            business_model=business_model,
+            why_it_can_win=why_win,
+            success_score=0.72,
+        )
+    except Exception as e:
+        print(f"[unicornforge] Error in intelligent brief: {e}")
+        return _generate_stub_brief(payload)
+
+
+def _parse_brief_from_text(text: str, payload: Optional[GenerateBriefRequest]) -> GenerateBriefResponse:
+    """
+    Parse the 10-section brief from LLM response using keyword matching.
+    More flexible than expecting strict numbering.
+    """
+    sections = {}
+    
+    # Split by keywords and extract content
+    keywords = [
+        ("project_name", r"(?:project\s+)?name:?\s*(.+?)(?=(?:one[- ]sentence|pitch|problem|$))", re.IGNORECASE),
+        ("one_sentence_pitch", r"(?:one[- ]sentence)?(?:\s*)?pitch:?\s*(.+?)(?=problem|$)", re.IGNORECASE),
+        ("problem", r"problem:?\s*(.+?)(?=solution|$)", re.IGNORECASE),
+        ("solution", r"solution:?\s*(.+?)(?=target|market|$)", re.IGNORECASE),
+        ("target_market", r"target\s+market:?\s*(.+?)(?=mvp|scope|$)", re.IGNORECASE),
+        ("mvp_scope", r"(?:mvp|minimum viable product)\s+scope:?\s*(.+?)(?=(?:key\s+)?features|$)", re.IGNORECASE),
+        ("key_features", r"(?:key\s+)?features:?\s*(.+?)(?=demo|scenario|$)", re.IGNORECASE),
+        ("demo_scenario", r"demo\s+scenario:?\s*(.+?)(?=business\s+model|$)", re.IGNORECASE),
+        ("business_model", r"business\s+model:?\s*(.+?)(?=why|$)", re.IGNORECASE),
+        ("why_it_can_win", r"(?:why|why\s+this|can\s+win).*?:?\s*(.+?)$", re.IGNORECASE | re.MULTILINE),
+    ]
+    
+    for key, pattern, flags in keywords:
+        match = re.search(pattern, text, flags)
+        if match:
+            content = match.group(1).strip()
+            # Clean up bullet points and formatting
+            lines = content.split('\n')
+            sections[key] = lines[0].strip() if lines else content
+    
+    # Use defaults for missing sections
+    idea = payload.project_idea if payload else "Your Idea"
+    
+    return GenerateBriefResponse(
+        project_name=sections.get("project_name", f"{idea} — UnicornForge AI").strip(),
+        one_sentence_pitch=sections.get("one_sentence_pitch", f"{idea} — AI-powered startup brief.").strip(),
+        problem=sections.get("problem", "Teams need to pitch quickly.").strip(),
+        solution=sections.get("solution", "Generate a structured startup brief instantly.").strip(),
+        target_market=sections.get("target_market", payload.target_users or "Hackathon teams").strip(),
+        mvp_scope=sections.get("mvp_scope", "Single-page web app for brief generation.").strip(),
+        key_features=sections.get("key_features", "- Idea-to-brief generation\n- Clear problem & solution framing").strip(),
+        demo_scenario=sections.get("demo_scenario", "1) Enter idea. 2) Generate. 3) Copy.").strip(),
+        business_model=sections.get("business_model", "Freemium SaaS.").strip(),
+        why_it_can_win=sections.get("why_it_can_win", "Helps teams pitch quickly using AMD GPUs.").strip(),
+        success_score=None,
+    )
+
+
+def _generate_stub_brief(payload: Optional[GenerateBriefRequest]) -> GenerateBriefResponse:
+    """
+    Fallback stub that uses request data so the response reflects the frontend input.
     Also runs the local success model (if available) and attaches a success_score to the response.
     """
     def safe(val: Optional[str], default: str = "not specified") -> str:

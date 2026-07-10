@@ -16,4 +16,4 @@ if ! command -v uvicorn >/dev/null 2>&1; then
 fi
 
 # Run uvicorn
-python -m uvicorn backend.app:app --host 0.0.0.0 --port 8000
+python -m uvicorn app:app --host 0.0.0.0 --port 8000
