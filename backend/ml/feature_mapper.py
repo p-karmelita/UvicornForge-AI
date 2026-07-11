@@ -179,10 +179,11 @@ def map_request_to_features(
         "Social Media Followers": max(50.0, medians.get("Social Media Followers", 500.0) * multiplier),
     }
 
-    # Default to strong AMD + Fireworks setup to showcase sponsor tech advantage
-    comp = compute_platform or "Own AMD GPU cluster"
-    amd = amd_platform or "AMD Instinct MI300X"
-    primary_model = "Qwen2.5" if "AMD" in amd or "ROCm" in amd else "Mixtral 8x7B"
+    # Honest defaults — only strong AMD if user or caller explicitly provides it.
+    # Neutral default keeps scores believable and the product high-value.
+    comp = compute_platform or "Cloud GPU (generic)"
+    amd = amd_platform or "—"
+    primary_model = "Qwen2.5" if "AMD" in str(amd) or "ROCm" in str(amd) else "Mixtral 8x7B"
 
     # Build row using new column names + AMD tech choices
     row = {

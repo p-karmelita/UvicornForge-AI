@@ -115,4 +115,10 @@ def generate_dataset_brief(
             f"It combines a trained outcome model, practical dataset signals, and AMD-ready "
             f"execution — directly relevant to the Unicorn Track goals."
         ),
+        # High-value additions (dataset fallback - simpler but useful)
+        "risks_and_mitigations": "Risk: scope creep in short time. Mitigation: strict MVP cut. Risk: weak demo. Mitigation: focus on one killer flow + clear narrative.",
+        "go_to_market": "Launch at the hackathon itself. Collect feedback from 5-10 teams on-site. Use as lead magnet for future events.",
+        "key_metrics_to_track": "Time-to-first-brief (< 90s), user satisfaction (NPS after use), % of users who export to pitch deck.",
+        "recommended_next_steps": "30d: polish UI + add 3 more presets. 60d: integrate real AMD inference demo. 90d: pilot with 2 university hackathons.",
+        "hackathon_tips": "Emphasize the AMD + Fireworks angle in the demo. Show the success score live. Export the brief as your own project README.",
     }

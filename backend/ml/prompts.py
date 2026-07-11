@@ -119,7 +119,7 @@ Available technologies:
 Reference startups from global_startup_success_dataset.csv:
 {references}
 
-Return exactly 10 sections with these labels:
+Return exactly these 15 sections (use clear, professional, investor/hackathon-judge ready language):
 
 Project name:
 One-sentence pitch:
@@ -131,4 +131,9 @@ Key features:
 Demo scenario:
 Business model:
 Why this project can win a hackathon:
+Risks and mitigations:
+Go-to-market strategy:
+Key metrics to track in first 3 months:
+Recommended next steps (30/60/90 days):
+Hackathon winning tips (demo, pitch, sponsor alignment):
 """
