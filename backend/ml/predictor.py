@@ -45,6 +45,7 @@ class SuccessPredictor:
         self.model = None
         self.feature_columns: list[str] = []
         self.scaler = None
+        self.training_metadata: dict = {}
         self.ready = False
         self._load()
 
@@ -61,6 +62,7 @@ class SuccessPredictor:
             with open(metadata_path, "rb") as handle:
                 metadata = pickle.load(handle)
 
+            self.training_metadata = metadata if isinstance(metadata, dict) else {}
             self.feature_columns = list(metadata.get("feature_columns", []))
             if not self.feature_columns:
                 return

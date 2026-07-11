@@ -8,51 +8,10 @@ import requests
 from pydantic import BaseModel
 
 from ml.brief_generator import generate_dataset_brief
-from ml.dataset import build_dataset_context, get_dataset_info
+from ml.dataset import find_similar_startup_rows, get_dataset_info
 from ml.feature_mapper import map_request_to_features
 from ml.predictor import PredictionResult, SuccessPredictor
-
-PROMPT_TEMPLATE = """You are an experienced startup advisor and hackathon mentor.
-
-Transform the rough idea below into a complete startup brief grounded in the reference startups from global_startup_success_dataset.csv.
-
-Project idea:
-{project_idea}
-
-Target users:
-{target_users}
-
-Industry:
-{industry}
-
-Available time:
-{available_time}
-
-Available technologies:
-{available_technologies}
-
-Reference startups from global_startup_success_dataset.csv:
-{dataset_context}
-
-Return exactly 10 sections in English, using these labels:
-
-Project name:
-One-sentence pitch:
-Problem:
-Solution:
-Target market:
-MVP scope:
-Key features:
-Demo scenario:
-Business model:
-Why this project can win a hackathon:
-
-Guidelines:
-- Be specific to the user's idea, not generic.
-- Use dataset references to justify market sizing and success patterns.
-- Mention AMD GPUs or Fireworks AI API only when relevant to available technologies.
-- Keep each section concise and demo-ready.
-"""
+from ml.prompts import build_hackathon_prompt, row_to_description
 
 
 class GenerateBriefRequest(BaseModel):
@@ -123,6 +82,7 @@ class BriefService:
             cuda_available = False
             device_name = None
 
+        training_meta = getattr(self.predictor, "training_metadata", {})
         return {
             "success_model_ready": self.predictor.ready,
             "feature_columns": len(self.predictor.feature_columns),
@@ -134,6 +94,9 @@ class BriefService:
             "device_name": device_name,
             "xai_configured": bool(self.xai_api_key),
             "xai_model": self.xai_model,
+            "training_samples": training_meta.get("training_samples"),
+            "final_val_mse": training_meta.get("final_val_mse"),
+            "scaler_saved": self.predictor.scaler is not None,
         }
 
     def generate(self, payload: GenerateBriefRequest) -> GenerateBriefResponse:
@@ -165,13 +128,17 @@ class BriefService:
             available_time=payload.available_time,
             available_technologies=payload.available_technologies,
         )
-        return PROMPT_TEMPLATE.format(
+        references = [
+            row_to_description(row)
+            for row in find_similar_startup_rows(mapped.industry, mapped.tech_stack, limit=3)
+        ]
+        return build_hackathon_prompt(
             project_idea=payload.project_idea.strip(),
             target_users=self._norm_field(payload.target_users),
             industry=self._norm_field(payload.industry, mapped.industry),
             available_time=self._norm_field(payload.available_time),
             available_technologies=self._norm_field(payload.available_technologies, mapped.tech_stack),
-            dataset_context=build_dataset_context(mapped.industry, mapped.tech_stack),
+            reference_profiles=references,
         )
 
     def _generate_dataset_brief(self, payload: GenerateBriefRequest) -> GenerateBriefResponse:
