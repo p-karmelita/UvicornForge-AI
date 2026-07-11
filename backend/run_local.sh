@@ -16,5 +16,14 @@ fi
 pip install --upgrade pip
 pip install -r requirements.txt
 
-# Run uvicorn
-python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
+PORT=8000
+if command -v ss >/dev/null 2>&1; then
+  OLD_PID="$(ss -tlnp | awk -v port=":${PORT}" '$4 ~ port {print $6}' | sed -n 's/.*pid=\([0-9]*\).*/\1/p' | head -1)"
+  if [ -n "${OLD_PID:-}" ]; then
+    echo "Stopping previous server on port ${PORT} (pid ${OLD_PID})..."
+    kill "${OLD_PID}" 2>/dev/null || true
+    sleep 1
+  fi
+fi
+
+python -m uvicorn app:app --host 0.0.0.0 --port "${PORT}" --reload

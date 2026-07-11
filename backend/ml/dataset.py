@@ -7,6 +7,8 @@ from typing import Optional
 
 import pandas as pd
 
+from .prompts import row_to_description
+
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DATASET_PATH = BACKEND_DIR / "global_startup_success_dataset.csv"
 
@@ -132,42 +134,10 @@ def find_similar_startups(industry: str, tech_stack: str, limit: int = 3) -> lis
     ]
 
 
-def row_to_profile(row: pd.Series) -> str:
-    name = row.get("Startup Name", "This startup")
-    industry = row.get("Industry", "")
-    country = row.get("Country", "")
-    funding_stage = row.get("Funding Stage", "")
-    founded_year = row.get("Founded Year", "")
-    total_funding = row.get("Total Funding ($M)", "")
-    employees = row.get("Number of Employees", "")
-    revenue = row.get("Annual Revenue ($M)", "")
-    customers = row.get("Customer Base (Millions)", "")
-    tech_stack = row.get("Tech Stack", "")
-    success_score = row.get(TARGET_COLUMN, "")
-
-    parts = [f"{name} operates in the {industry} industry based in {country}."]
-    if pd.notna(founded_year) and founded_year != "":
-        parts.append(f"Founded in {int(float(founded_year))}.")
-    if pd.notna(total_funding) and total_funding != "":
-        parts.append(f"Raised around {total_funding}M USD ({funding_stage}).")
-    if pd.notna(employees) and employees != "":
-        parts.append(f"Employs about {employees} people.")
-    if pd.notna(revenue) and revenue != "":
-        parts.append(f"Annual revenue near {revenue}M USD.")
-    if pd.notna(customers) and customers != "":
-        parts.append(f"Serves roughly {customers}M customers.")
-    if isinstance(tech_stack, str) and tech_stack:
-        parts.append(f"Tech stack: {tech_stack}.")
-    if pd.notna(success_score) and success_score != "":
-        parts.append(f"Success score: {float(success_score):.1f}/9.")
-
-    return " ".join(parts)
-
-
 def build_dataset_context(industry: str, tech_stack: str, limit: int = 3) -> str:
     rows = find_similar_startup_rows(industry, tech_stack, limit)
     if not rows:
         return "No comparable startup profiles found in global_startup_success_dataset.csv."
 
-    profiles = [f"- {row_to_profile(row)}" for row in rows]
+    profiles = [f"- {row_to_description(row)}" for row in rows]
     return "Comparable startups from global_startup_success_dataset.csv:\n" + "\n".join(profiles)

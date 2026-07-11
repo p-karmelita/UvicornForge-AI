@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from .dataset import build_dataset_context, find_similar_startup_rows, get_industry_medians
+from .dataset import find_similar_startup_rows, get_industry_medians
 from .feature_mapper import map_request_to_features
+from .prompts import row_to_description
 
 
 def _norm(value: Optional[str], default: str = "not specified") -> str:
@@ -33,7 +34,8 @@ def generate_dataset_brief(
     medians = get_industry_medians(mapped.industry)
     references = find_similar_startup_rows(mapped.industry, mapped.tech_stack, limit=2)
     reference_names = ", ".join(str(row.get("Startup Name", "a comparable startup")) for row in references)
-    top_score = float(references[0].get("Success Score", medians.get("Annual Revenue ($M)", 5))) if references else 5.0
+    reference_profiles = [row_to_description(row) for row in references]
+    top_score = float(references[0].get("Success Score", 5)) if references else 5.0
 
     return {
         "project_name": f"{idea[:48].strip().title()}",
@@ -49,7 +51,8 @@ def generate_dataset_brief(
         "solution": (
             f"Build a focused {mapped.industry} MVP using {tech} that solves the core workflow behind "
             f"\"{idea[:80]}\". Position it for a {mapped.funding_stage} stage team in {mapped.country}, "
-            f"with architecture choices informed by successful peers in the dataset."
+            f"with architecture choices informed by successful peers in the dataset. "
+            f"{'Reference pattern: ' + reference_profiles[0][:180] if reference_profiles else ''}"
         ),
         "target_market": (
             f"Primary users: {target}. Industry: {mapped.industry}. "
