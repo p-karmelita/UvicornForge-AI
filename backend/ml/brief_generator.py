@@ -121,4 +121,12 @@ def generate_dataset_brief(
         "key_metrics_to_track": "Time-to-first-brief (< 90s), user satisfaction (NPS after use), % of users who export to pitch deck.",
         "recommended_next_steps": "30d: polish UI + add 3 more presets. 60d: integrate real AMD inference demo. 90d: pilot with 2 university hackathons.",
         "hackathon_tips": "Emphasize the AMD + Fireworks angle in the demo. Show the success score live. Export the brief as your own project README.",
+        # Rich starter kit defaults (dataset fallback)
+        "recommended_tech_stack": f"Backend: {tech}. Frontend: simple React or plain HTML+JS for speed. LLM: Fireworks AI for brief generation. Compute: AMD GPUs / ROCm for any ML parts or demo acceleration.",
+        "architecture_overview": "Simple client-server: static or minimal frontend -> FastAPI backend that calls Fireworks for text + local PyTorch MLP (or the hosted model) for success scoring. Data flows from form -> mapped features -> prediction + LLM prompt.",
+        "project_structure": "project/\n  frontend/\n    index.html (or React app)\n  backend/\n    app.py\n    ml/\n      predictor.py\n      prompts.py\n    requirements.txt\n  README.md\n  demo/\n    script.md",
+        "mvp_checklist": "Hour 0-1: Set up repo + basic FastAPI + static HTML form.\nHour 1-3: Implement /generate endpoint using Fireworks + basic scoring stub.\nHour 3-6: Wire the trained success model, polish prompt, add score display.\nHour 6-8: Nice UI polish, copy/download buttons, AMD mention in demo.\nHour 8+: Record 3-min demo video, prepare pitch, test on real idea.",
+        "starter_readme": f"# {project_name}\n\n{idea}\n\n## Quickstart\n\n1. Install backend deps\n2. Run uvicorn\n3. Open frontend\n4. Enter idea and generate\n\n## Tech\n- Python + FastAPI\n- Fireworks AI\n- AMD GPU ready\n\n## Next\nSee the generated brief for full plan.",
+        "pitch_outline": "Slide 1: Problem + One sentence pitch\nSlide 2: Solution overview\nSlide 3: Target users & market\nSlide 4: Demo (live or video)\nSlide 5: Tech (AMD + Fireworks)\nSlide 6: Traction / why win (success score + plan)\nSlide 7: Ask / next steps",
+        "demo_script": "0:00-0:30 Problem story\n0:30-1:00 Enter idea in the tool\n1:00-2:00 Show generated brief + rich docs\n2:00-3:00 Show live score + AMD mention\n3:00-4:00 Explain architecture & how you built it fast\n4:00-5:00 Close with why it wins + call to action",
     }
