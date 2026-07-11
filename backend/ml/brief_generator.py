@@ -51,7 +51,7 @@ def generate_dataset_brief(
     top_score = float(references[0].get("Success Score", 5)) if references else 5.0
 
     # Simple, reliable product name for the dataset fallback
-    # (when Grok is available it usually generates much better names)
+    # (when the LLM via Fireworks is available it usually generates much better names)
     idea_lower = idea.lower()
     if "agent" in idea_lower:
         project_name = "Autonomous Task Agent"
