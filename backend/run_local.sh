@@ -7,13 +7,14 @@ cd "$(dirname "$0")"
 
 export PYTHONPATH="$PWD"
 
-if ! command -v uvicorn >/dev/null 2>&1; then
-  echo "uvicorn not found; installing runtime dependencies into a venv..."
+if [ ! -d ".venv" ]; then
+  echo "Creating backend virtual environment..."
   python -m venv .venv
-  . .venv/bin/activate
-  pip install --upgrade pip
-  pip install fastapi uvicorn pydantic
 fi
 
+. .venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+
 # Run uvicorn
-python -m uvicorn app:app --host 0.0.0.0 --port 8000
+python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload

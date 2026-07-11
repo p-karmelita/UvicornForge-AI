@@ -11,3 +11,4 @@ backend/global-startup-success-dataset/
 backend/trained_models/
 *.pt
 *.pkl
+.env

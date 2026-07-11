@@ -3,21 +3,26 @@ from __future__ import annotations
 from typing import Optional
 
 import os
-import pickle
 import re
 import requests
+import google.generativeai as genai
+from dotenv import load_dotenv
 
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
+
+from ml.predictor import PredictionResult, SuccessPredictor
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Optional ML dependencies; guarded imports for environments without torch
 try:
     import torch
-    import numpy as np
 except Exception:  # pragma: no cover - best-effort import
     torch = None
-    np = None
 
 
 # ==== Data models =============================================================
@@ -28,6 +33,12 @@ class GenerateBriefRequest(BaseModel):
     industry: Optional[str] = None
     available_time: Optional[str] = None
     available_technologies: Optional[str] = None
+
+
+class SimilarStartup(BaseModel):
+    name: str
+    industry: str
+    score: str
 
 
 class GenerateBriefResponse(BaseModel):
@@ -41,8 +52,13 @@ class GenerateBriefResponse(BaseModel):
     demo_scenario: str
     business_model: str
     why_it_can_win: str
-    # Optional success score produced by the local model (0..1, higher is better)
     success_score: Optional[float] = None
+    success_score_normalized: Optional[float] = None
+    success_label: Optional[str] = None
+    similar_startups: Optional[list[SimilarStartup]] = None
+    score_factors: Optional[dict[str, str]] = None
+    model_source: Optional[str] = None
+    llm_source: Optional[str] = None
 
 
 # ==== Prompt template (from docs, simplified) =================================
@@ -100,44 +116,25 @@ app = FastAPI(
     version="0.1.0",
 )
 
-# Allow frontend (served from another port) to call the API
+# Allow frontend from local dev servers (PyCharm, Live Server, etc.)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:8080", "http://127.0.0.1:8080"],
+    allow_origins=["null"],
+    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=3600,
 )
 
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 
-# ==== AI integration and local model loader ==================================
 
-# Attempt to load a local PyTorch model and metadata from trained_models.
-MODEL = None
-MODEL_METADATA = None
-MODEL_PATH = os.path.join(os.path.dirname(__file__), "trained_models", "startup_success_mlp", "model.pt")
-METADATA_PATH = os.path.join(os.path.dirname(__file__), "trained_models", "startup_success_mlp", "metadata.pkl")
+# ==== Local success model ====================================================
 
-if torch is not None:
-    try:
-        if os.path.exists(METADATA_PATH):
-            with open(METADATA_PATH, "rb") as f:
-                MODEL_METADATA = pickle.load(f)
-        if os.path.exists(MODEL_PATH):
-            # load on CPU by default; if ROCm is available, torch will use it if configured
-            MODEL = torch.load(MODEL_PATH, map_location="cpu")
-            # If a state_dict was saved instead of the module, leave as-is and expect user to adapt.
-        if MODEL is not None:
-            try:
-                MODEL.eval()
-            except Exception:
-                # MODEL might be a state_dict; keep it but mark unavailable for direct inference
-                pass
-    except Exception:
-        MODEL = None
-        MODEL_METADATA = None
+SUCCESS_PREDICTOR = SuccessPredictor()
 
-# Emit a small startup diagnostic to logs so the runner can confirm ROCm/Model status
 try:
     print("[unicornforge] torch available:", bool(torch))
     if torch is not None:
@@ -153,82 +150,63 @@ try:
                         pass
         except Exception:
             pass
-    print(f"[unicornforge] MODEL loaded: {MODEL is not None}, METADATA: {MODEL_METADATA is not None}")
+    print(f"[unicornforge] success model ready: {SUCCESS_PREDICTOR.ready}")
 except Exception:
     pass
 
 
-def _predict_success_from_payload(payload: GenerateBriefRequest) -> Optional[float]:
-    """
-    Build a feature vector from payload and run the loaded model to predict a success score.
-    This is a best-effort function: if the model or metadata isn't available or inference fails,
-    it returns None.
-    """
-    if torch is None or np is None:
-        return None
-    if MODEL is None or MODEL_METADATA is None:
-        return None
+# ==== AI provider initialization (xAI Grok + Google Gemini fallback) ==========
 
-    try:
-        feature_cols = MODEL_METADATA.get("feature_columns")
-        num_cols = len(feature_cols)
-        means = MODEL_METADATA.get("means")
-        stds = MODEL_METADATA.get("stds")
+XAI_API_KEY = os.getenv("XAI_API_KEY")
+XAI_API_BASE = "https://api.x.ai/v1"
+XAI_MODEL = os.getenv("XAI_MODEL", "grok-4.5")
 
-        # Start from means (normalized space expected by model metadata)
-        vec = np.array(means, dtype=float) if means is not None else np.zeros(num_cols, dtype=float)
+if XAI_API_KEY:
+    print("[unicornforge] xAI Grok API configured successfully")
+else:
+    print("[unicornforge] WARNING: XAI_API_KEY not found in environment")
 
-        def set_cat(col_name: str):
-            if col_name in feature_cols:
-                idx = feature_cols.index(col_name)
-                vec[idx] = 1.0
+GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+    print("[unicornforge] Google Gemini API configured successfully")
+else:
+    print("[unicornforge] WARNING: GOOGLE_GEMINI_API_KEY not found in environment")
 
-        # Try mapping available fields to known columns
-        # Industry -> Industry_{value}
-        if payload.industry:
-            set_cat(f"Industry_{payload.industry}")
 
-        # Tech stack heuristics: check tokens in available_technologies
-        tech = (payload.available_technologies or "").lower()
-        for token, col in [("python", "Tech Stack_Python, AI"), ("node", "Tech Stack_Node.js, React"), ("java", "Tech Stack_Java, Spring"), ("php", "Tech Stack_PHP, Laravel")]:
-            if token in tech:
-                set_cat(col)
+def _predict_success(payload: GenerateBriefRequest) -> Optional[PredictionResult]:
+    return SUCCESS_PREDICTOR.predict_from_payload(
+        project_idea=payload.project_idea,
+        target_users=payload.target_users,
+        industry=payload.industry,
+        available_time=payload.available_time,
+        available_technologies=payload.available_technologies,
+    )
 
-        # Target users -> map to target_market if present as categorical
-        if payload.target_users:
-            # crude mapping: look for 'students', 'founders', 'accelerator'
-            tu = payload.target_users.lower()
-            if "student" in tu:
-                set_cat("Target_Students")
-            if "founder" in tu or "founders" in tu:
-                set_cat("Target_Founders")
 
-        # Keep numeric features as means (metadata already contains means)
-        x = np.asarray(vec, dtype=float)
-        # normalize if metadata provides stds
-        if stds is not None:
-            x = (x - np.asarray(means)) / (np.asarray(stds) + 1e-9)
+def _attach_prediction(
+    response: GenerateBriefResponse,
+    prediction: Optional[PredictionResult],
+    llm_source: Optional[str] = None,
+) -> GenerateBriefResponse:
+    updates = {"llm_source": llm_source}
+    if prediction is not None:
+        updates.update(
+            {
+                "success_score": prediction.score,
+                "success_score_normalized": prediction.score_normalized,
+                "success_label": prediction.label,
+                "score_factors": prediction.factors,
+                "model_source": prediction.model_source,
+                "similar_startups": [
+                    SimilarStartup(**item) for item in prediction.similar_startups
+                ],
+            }
+        )
+    return response.model_copy(update=updates)
 
-        tensor = torch.from_numpy(x.astype("float32"))
-        # Ensure shape (1, N)
-        if tensor.dim() == 1:
-            tensor = tensor.unsqueeze(0)
 
-        # If MODEL is a state_dict or not callable, skip
-        if hasattr(MODEL, "forward"):
-            with torch.no_grad():
-                out = MODEL(tensor)
-                # assume scalar output or single-dim
-                score = float(out.squeeze().cpu().numpy())
-                # If model outputs logits or unbounded score, squash to 0..1
-                score = 1.0 / (1.0 + np.exp(-score)) if abs(score) > 1e-6 else float(score)
-                return float(score)
-    except Exception:
-        return None
-
-    return None
-
-# ==== AI integration stub ====================================================
+# ==== AI integration =========================================================
 
 def _build_prompt(payload: GenerateBriefRequest) -> str:
     """Fill the prompt template with request data."""
@@ -244,13 +222,68 @@ def _build_prompt(payload: GenerateBriefRequest) -> str:
     )
 
 
-def _call_ai_model(prompt: str, payload: Optional[GenerateBriefRequest] = None) -> GenerateBriefResponse:
+def _call_grok_api(prompt: str) -> Optional[str]:
+    """Call xAI Grok via the OpenAI-compatible responses API."""
+    if not XAI_API_KEY:
+        return None
+
+    try:
+        response = requests.post(
+            f"{XAI_API_BASE}/responses",
+            headers={
+                "Authorization": f"Bearer {XAI_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": XAI_MODEL,
+                "input": prompt,
+            },
+            timeout=120,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        if isinstance(data.get("output_text"), str) and data["output_text"].strip():
+            return data["output_text"]
+
+        for item in data.get("output", []):
+            if item.get("type") == "message":
+                for content in item.get("content", []):
+                    if content.get("type") == "output_text" and content.get("text"):
+                        return content["text"]
+    except Exception as e:
+        print(f"[unicornforge] Error calling xAI Grok API: {e}")
+
+    return None
+
+
+def _call_ai_model(
+    prompt: str,
+    payload: Optional[GenerateBriefRequest] = None,
+    prediction: Optional[PredictionResult] = None,
+) -> GenerateBriefResponse:
     """
-    Generate intelligent brief using keyword extraction from payload.
-    Creates unique responses based on input without external API.
+    Generate intelligent brief using xAI Grok (primary) or Google Gemini (fallback).
+    Falls back to keyword-based generation if APIs are unavailable.
     """
+    grok_text = _call_grok_api(prompt)
+    if grok_text:
+        return _attach_prediction(_parse_brief_from_text(grok_text, payload), prediction, "grok")
+
+    if GEMINI_API_KEY:
+        try:
+            model = genai.GenerativeModel("gemini-pro")
+            response = model.generate_content(prompt)
+
+            if response.text:
+                return _attach_prediction(_parse_brief_from_text(response.text, payload), prediction, "gemini")
+        except Exception as e:
+            print(f"[unicornforge] Error calling Gemini API: {e}")
+            print("[unicornforge] Falling back to keyword-based generation")
+    
+    # Fallback to intelligent keyword-based generation
     if payload is None:
-        return _generate_stub_brief(payload)
+        return _attach_prediction(_generate_stub_brief(payload), prediction, "template")
     
     try:
         idea = payload.project_idea.strip() if payload.project_idea else "Your Project"
@@ -284,22 +317,25 @@ def _call_ai_model(prompt: str, payload: Optional[GenerateBriefRequest] = None) 
         
         why_win = f"We solve a real pain point for {target.lower()} in {industry}. Built with {tech}, we can scale efficiently. The market is hungry for solutions like this. Our demo showcases immediate ROI. Hackathon win = proof of concept for enterprise pitch."
         
-        return GenerateBriefResponse(
-            project_name=project_name,
-            one_sentence_pitch=one_sentence,
-            problem=problem,
-            solution=solution,
-            target_market=target_market,
-            mvp_scope=mvp_scope,
-            key_features=key_features,
-            demo_scenario=demo_scenario,
-            business_model=business_model,
-            why_it_can_win=why_win,
-            success_score=0.72,
+        return _attach_prediction(
+            GenerateBriefResponse(
+                project_name=project_name,
+                one_sentence_pitch=one_sentence,
+                problem=problem,
+                solution=solution,
+                target_market=target_market,
+                mvp_scope=mvp_scope,
+                key_features=key_features,
+                demo_scenario=demo_scenario,
+                business_model=business_model,
+                why_it_can_win=why_win,
+            ),
+            prediction,
+            "template",
         )
     except Exception as e:
-        print(f"[unicornforge] Error in intelligent brief: {e}")
-        return _generate_stub_brief(payload)
+        print(f"[unicornforge] Error in keyword-based generation: {e}")
+        return _attach_prediction(_generate_stub_brief(payload), prediction, "template")
 
 
 def _parse_brief_from_text(text: str, payload: Optional[GenerateBriefRequest]) -> GenerateBriefResponse:
@@ -345,7 +381,6 @@ def _parse_brief_from_text(text: str, payload: Optional[GenerateBriefRequest]) -
         demo_scenario=sections.get("demo_scenario", "1) Enter idea. 2) Generate. 3) Copy.").strip(),
         business_model=sections.get("business_model", "Freemium SaaS.").strip(),
         why_it_can_win=sections.get("why_it_can_win", "Helps teams pitch quickly using AMD GPUs.").strip(),
-        success_score=None,
     )
 
 
@@ -395,9 +430,6 @@ def _generate_stub_brief(payload: Optional[GenerateBriefRequest]) -> GenerateBri
         f"designed to showcase AMD GPUs and ROCm-powered inference for open models."
     )
 
-    # Run local success model (best-effort)
-    score = _predict_success_from_payload(payload) if payload is not None else None
-
     return GenerateBriefResponse(
         project_name=project_name,
         one_sentence_pitch=one_sentence_pitch,
@@ -409,11 +441,16 @@ def _generate_stub_brief(payload: Optional[GenerateBriefRequest]) -> GenerateBri
         demo_scenario=demo_scenario,
         business_model=business_model,
         why_it_can_win=why_it_can_win,
-        success_score=score,
     )
 
 
 # ==== Routes =================================================================
+
+@app.get("/")
+async def serve_frontend():
+    """Serve the single-page UI from the same origin as the API."""
+    return FileResponse(os.path.join(FRONTEND_DIR, "index.html"))
+
 
 @app.post("/generate-brief", response_model=GenerateBriefResponse)
 async def generate_brief(payload: GenerateBriefRequest) -> GenerateBriefResponse:
@@ -428,8 +465,8 @@ async def generate_brief(payload: GenerateBriefRequest) -> GenerateBriefResponse
         raise HTTPException(status_code=400, detail="project_idea is required")
 
     prompt = _build_prompt(payload)
-    # In the future, `prompt` will be sent to an AI model.
-    response = _call_ai_model(prompt, payload)
+    prediction = _predict_success(payload)
+    response = _call_ai_model(prompt, payload, prediction)
     return response
 
 
@@ -438,8 +475,10 @@ async def health():
     """Simple health endpoint reporting model and environment status."""
     return {
         "ok": True,
-        "model_loaded": MODEL is not None,
-        "metadata_loaded": MODEL_METADATA is not None,
+        "success_model_ready": SUCCESS_PREDICTOR.ready,
+        "feature_columns": len(SUCCESS_PREDICTOR.feature_columns),
         "torch_available": torch is not None,
         "cuda_available": getattr(torch, "cuda", None) is not None and torch.cuda.is_available() if torch is not None else False,
+        "xai_configured": bool(XAI_API_KEY),
+        "gemini_configured": bool(GEMINI_API_KEY),
     }

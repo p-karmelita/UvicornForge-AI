@@ -102,7 +102,11 @@
     </div>
 
     <script>
-        const apiBaseUrl = "http://localhost:8000";
+        const apiBaseUrl =
+            (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") &&
+            window.location.port === "8000"
+                ? window.location.origin
+                : "http://localhost:8000";
 
         const generateBtn = document.getElementById("generate_btn");
         const copyBtn = document.getElementById("copy_btn");
@@ -129,7 +133,17 @@
             ];
 
             if (brief.success_score !== null && brief.success_score !== undefined) {
-                lines.push("", `**Predicted hackathon success score (0-1):** ${brief.success_score.toFixed(2)}`);
+                const label = brief.success_label ? ` (${brief.success_label})` : "";
+                lines.push("", `**Predicted startup success score:** ${brief.success_score.toFixed(1)} / 9.0${label}`);
+            }
+            if (brief.score_factors) {
+                lines.push("", `**Score factors:** industry=${brief.score_factors.industry}, tech=${brief.score_factors.tech_stack}, stage=${brief.score_factors.funding_stage}`);
+            }
+            if (brief.similar_startups && brief.similar_startups.length) {
+                lines.push("", `**Similar startups from dataset:**`);
+                brief.similar_startups.forEach((s) => {
+                    lines.push(`- ${s.name} (${s.industry}, score ${s.score})`);
+                });
             }
 
             lines.push(
@@ -199,7 +213,8 @@
                 outputEl.textContent = toMarkdown(brief);
                 // show success score if present
                 if (brief.success_score !== null && brief.success_score !== undefined) {
-                    statusEl.textContent = `Done. Predicted success score: ${brief.success_score.toFixed(2)}.`;
+                    const label = brief.success_label ? ` — ${brief.success_label}` : "";
+                    statusEl.textContent = `Done. Success score: ${brief.success_score.toFixed(1)}/9${label}.`;
                 } else {
                     statusEl.textContent = "Done.";
                 }
