@@ -12,23 +12,40 @@ from .prompts import row_to_description
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_DATASET_PATH = BACKEND_DIR / "global_startup_success_dataset.csv"
 
-CAT_COLUMNS = ["Country", "Industry", "Funding Stage", "Tech Stack"]
+# New dataset schema (tailored for AMD hackathon project)
+# Focus on realistic early-stage metrics + AMD sponsor tech choices
+CAT_COLUMNS = [
+    "Industry",
+    "Funding Stage",
+    "Product Stage",
+    "Backend Tech Stack",
+    "Frontend Tech",
+    "Compute Platform",      # "Own AMD GPU cluster" vs "Fireworks AI API" — key for AMD story
+    "AMD Platform Used",     # MI300X, MI250, Radeon, etc.
+    "Primary Model Used",
+]
+
 NUM_COLUMNS = [
     "Founded Year",
-    "Total Funding ($M)",
-    "Number of Employees",
-    "Annual Revenue ($M)",
-    "Customer Base (Millions)",
+    "Total Funding ($)",
+    "Team Size",                          # much more realistic than old "employees"
+    "Monthly Recurring Revenue ($)",
+    "Valuation ($)",
+    "Customer Base",
+    "Fireworks AI Credits Used ($, cumulative)",  # sponsor signal
+    "Social Media Followers",
 ]
+
 TARGET_COLUMN = "Success Score"
 MODEL_COLUMNS = CAT_COLUMNS + NUM_COLUMNS + [TARGET_COLUMN]
 
 FUNDING_STAGE_MULTIPLIERS = {
-    "Seed": 0.15,
-    "Series A": 0.35,
-    "Series B": 0.6,
-    "Series C": 0.85,
-    "IPO": 1.0,
+    "Pre-Seed": 0.10,
+    "Bootstrapped": 0.12,
+    "Angel": 0.20,
+    "Seed": 0.30,
+    "Series A": 0.50,
+    "Series B": 0.70,
 }
 
 
@@ -80,43 +97,56 @@ def get_dataset_info() -> dict:
 def get_category_values() -> dict[str, list[str]]:
     df = load_dataset()
     if df is None:
+        # Realistic defaults based on new AMD-tailored dataset
         return {
-            "Country": ["Australia", "Brazil", "Canada", "China", "France", "Germany", "India", "Japan", "UK", "USA"],
-            "Industry": ["AI", "E-commerce", "EdTech", "Energy", "FinTech", "FoodTech", "Gaming", "Healthcare", "Logistics", "Tech"],
-            "Funding Stage": ["IPO", "Seed", "Series A", "Series B", "Series C"],
-            "Tech Stack": ["C++, ML", "Java, Spring", "Node.js, React", "PHP, Laravel", "Python, AI"],
+            "Industry": ["FinTech AI", "Climate & Energy AI", "Gaming AI", "Enterprise SaaS", "EdTech AI", "Logistics & Supply Chain AI"],
+            "Funding Stage": ["Pre-Seed", "Bootstrapped", "Angel", "Seed", "Series A"],
+            "Product Stage": ["Idea / Concept", "Prototype", "MVP", "Private Beta", "Public Beta"],
+            "Backend Tech Stack": ["Node.js, Express", "FastAPI", "Java, Spring Boot", "Python, FastAPI", "TypeScript, NestJS"],
+            "Frontend Tech": ["React", "Next.js", "Svelte", "Vue", "React Native", "Flutter (Dart)"],
+            "Compute Platform": ["Own AMD GPU cluster", "Fireworks AI API"],
+            "AMD Platform Used": ["AMD Instinct MI300X", "ROCm on MI300X cluster", "AMD Instinct MI250", "AMD Radeon PRO W7900"],
+            "Primary Model Used": ["Qwen2.5", "Llama 3.1", "DeepSeek", "Mixtral"],
         }
 
     return {col: sorted(df[col].dropna().unique().tolist()) for col in CAT_COLUMNS}
 
 
 def get_industry_medians(industry: str) -> dict[str, float]:
+    """Return median values for numeric columns. Uses realistic early-stage numbers."""
     df = load_dataset()
     defaults = {
         "Founded Year": 2024.0,
-        "Total Funding ($M)": 1.0,
-        "Number of Employees": 12.0,
-        "Annual Revenue ($M)": 0.5,
-        "Customer Base (Millions)": 0.05,
+        "Total Funding ($)": 150.0,
+        "Team Size": 5.0,
+        "Monthly Recurring Revenue ($)": 80.0,
+        "Valuation ($)": 2500.0,
+        "Customer Base": 120.0,
+        "Fireworks AI Credits Used ($, cumulative)": 5.0,
+        "Social Media Followers": 800.0,
     }
     if df is None:
         return defaults
 
-    subset = df[df["Industry"] == industry]
+    subset = df[df["Industry"] == industry] if "Industry" in df.columns else df
     if subset.empty:
         subset = df
 
-    return {col: float(subset[col].median()) for col in NUM_COLUMNS}
+    return {col: float(subset[col].median()) for col in NUM_COLUMNS if col in subset.columns}
 
 
 def find_similar_startup_rows(industry: str, tech_stack: str, limit: int = 3) -> list[pd.Series]:
+    """Find top similar startups. Prefers matching on Backend Tech Stack from new dataset."""
     df = load_raw_dataset()
     if df is None or "Startup Name" not in df.columns:
         return []
 
-    filtered = df[df["Industry"] == industry] if industry in df["Industry"].values else df
-    if tech_stack and "Tech Stack" in filtered.columns:
-        tech_filtered = filtered[filtered["Tech Stack"] == tech_stack]
+    filtered = df[df["Industry"] == industry] if "Industry" in df.columns and industry in df["Industry"].values else df
+
+    # Use new column name
+    tech_col = "Backend Tech Stack"
+    if tech_stack and tech_col in filtered.columns:
+        tech_filtered = filtered[filtered[tech_col] == tech_stack]
         if not tech_filtered.empty:
             filtered = tech_filtered
 

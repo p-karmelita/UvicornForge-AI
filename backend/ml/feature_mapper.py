@@ -15,11 +15,14 @@ from .dataset import (
 
 @dataclass
 class MappedFeatures:
+    """Features aligned with the new AMD-rich dataset."""
     row: dict[str, object]
     industry: str
     tech_stack: str
     funding_stage: str
-    country: str
+    country: str = "USA"
+    compute_platform: str = "Own AMD GPU cluster"
+    amd_platform: str = "AMD Instinct MI300X"
     factors: dict[str, str] = field(default_factory=dict)
 
 
@@ -144,19 +147,28 @@ def map_request_to_features(
     medians = get_industry_medians(matched_industry)
     multiplier = FUNDING_STAGE_MULTIPLIERS.get(matched_stage, 0.2)
 
+    # New schema numeric columns (AMD-aware)
     numeric = {
         "Founded Year": float(datetime.now().year),
-        "Total Funding ($M)": max(0.1, medians["Total Funding ($M)"] * multiplier),
-        "Number of Employees": max(3.0, medians["Number of Employees"] * multiplier),
-        "Annual Revenue ($M)": max(0.05, medians["Annual Revenue ($M)"] * multiplier),
-        "Customer Base (Millions)": max(0.01, medians["Customer Base (Millions)"] * multiplier),
+        "Total Funding ($)": max(5.0, medians.get("Total Funding ($)", 150.0) * multiplier),
+        "Team Size": max(2.0, medians.get("Team Size", 5.0) * multiplier),
+        "Monthly Recurring Revenue ($)": max(0.0, medians.get("Monthly Recurring Revenue ($)", 50.0) * multiplier),
+        "Valuation ($)": max(500.0, medians.get("Valuation ($)", 2000.0) * multiplier),
+        "Customer Base": max(5.0, medians.get("Customer Base", 50.0) * multiplier),
+        "Fireworks AI Credits Used ($, cumulative)": max(0.0, medians.get("Fireworks AI Credits Used ($, cumulative)", 2.0) * multiplier),
+        "Social Media Followers": max(50.0, medians.get("Social Media Followers", 500.0) * multiplier),
     }
 
+    # Build row using new column names + AMD tech choices
     row = {
-        "Country": matched_country,
         "Industry": matched_industry,
         "Funding Stage": matched_stage,
-        "Tech Stack": matched_tech,
+        "Product Stage": "MVP",                    # sensible default for hackathon
+        "Backend Tech Stack": matched_tech,
+        "Frontend Tech": "React",                  # default
+        "Compute Platform": "Own AMD GPU cluster", # default — this is powerful for scoring
+        "AMD Platform Used": "AMD Instinct MI300X",
+        "Primary Model Used": "Qwen2.5",
         **numeric,
     }
 
@@ -164,7 +176,8 @@ def map_request_to_features(
         "industry": matched_industry,
         "tech_stack": matched_tech,
         "funding_stage": matched_stage,
-        "country": matched_country,
+        "compute_platform": row["Compute Platform"],
+        "amd_platform": row["AMD Platform Used"],
         "stage_multiplier": f"{multiplier:.2f}",
     }
 
@@ -174,5 +187,7 @@ def map_request_to_features(
         tech_stack=matched_tech,
         funding_stage=matched_stage,
         country=matched_country,
+        compute_platform=row.get("Compute Platform", "Own AMD GPU cluster"),
+        amd_platform=row.get("AMD Platform Used", "AMD Instinct MI300X"),
         factors=factors,
     )
