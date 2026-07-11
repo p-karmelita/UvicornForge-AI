@@ -307,7 +307,7 @@
         <section class="panel">
             <h2>Generated Startup Brief</h2>
             <button id="copy_btn" type="button" class="secondary-btn">📋 Copy as Markdown</button>
-            <div class="download-buttons" style="margin: 0.5rem 0; display: flex; flex-wrap: wrap; gap: 0.4rem;">
+            <div id="download_area" class="download-buttons" style="margin: 0.5rem 0; display: none; flex-wrap: wrap; gap: 0.4rem;">
                 <button id="dl_full_kit" type="button" class="secondary-btn">⬇️ Full Starter Kit (.md)</button>
                 <button id="dl_readme" type="button" class="secondary-btn">⬇️ README.md</button>
                 <button id="dl_mvp" type="button" class="secondary-btn">⬇️ MVP Checklist</button>
@@ -625,6 +625,8 @@
             statusEl.textContent = "Generating your startup brief…";
             document.getElementById("score_area").style.display = "none";
             document.getElementById("brief_content").style.display = "none";
+            const dlAreaHide = document.getElementById("download_area");
+            if (dlAreaHide) dlAreaHide.style.display = "none";
             outputEl.style.display = "block";
             outputEl.innerHTML = `<span class="spinner"></span> Thinking with Fireworks AI + AMD-tuned model...`;
 
@@ -653,6 +655,10 @@
                 briefDiv.style.display = "block";
                 outputEl.style.display = "none";
 
+                // Show download buttons once we have rich content
+                const dlArea = document.getElementById("download_area");
+                if (dlArea) dlArea.style.display = "flex";
+
                 // Visual score display
                 const scoreArea = document.getElementById("score_area");
                 if (brief.success_score != null) {
@@ -680,6 +686,8 @@
                 statusEl.textContent = msg;
                 const bc = document.getElementById("brief_content");
                 bc.style.display = "none";
+                const dlAreaErr = document.getElementById("download_area");
+                if (dlAreaErr) dlAreaErr.style.display = "none";
                 outputEl.style.display = "block";
                 outputEl.textContent = "(Error — see status above)";
                 lastBrief = null;
