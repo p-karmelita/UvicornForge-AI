@@ -5,7 +5,6 @@ from typing import Optional
 import os
 import re
 import requests
-import google.generativeai as genai
 from dotenv import load_dotenv
 
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +12,9 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from ml.brief_generator import generate_dataset_brief
+from ml.dataset import build_dataset_context, get_dataset_info
+from ml.feature_mapper import map_request_to_features
 from ml.predictor import PredictionResult, SuccessPredictor
 
 load_dotenv()
@@ -80,6 +82,9 @@ Available time:
 Available technologies:
 {available_technologies}
 
+Reference data from global_startup_success_dataset.csv:
+{dataset_context}
+
 Now generate a complete startup brief in English.
 
 Return the content in 10 clearly separated sections, in this exact order:
@@ -99,6 +104,7 @@ Guidelines:
 - Be specific and practical.
 - Assume the team is building this as a hackathon or early MVP project.
 - Keep each section concise but informative.
+- Use the dataset references to ground market and success patterns.
 - Highlight where the available technologies (especially AMD GPUs and Fireworks AI API, if mentioned) can play a role.
 """
 
@@ -128,13 +134,10 @@ SUCCESS_PREDICTOR = SuccessPredictor()
 XAI_API_KEY = os.getenv("XAI_API_KEY")
 XAI_API_BASE = "https://api.x.ai/v1"
 XAI_MODEL = os.getenv("XAI_MODEL", "grok-4.5")
-GEMINI_API_KEY = os.getenv("GOOGLE_GEMINI_API_KEY")
-
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
 
 
 def _log_startup_status() -> None:
+    dataset = get_dataset_info()
     print("[unicornforge] torch available:", bool(torch))
     if torch is not None:
         try:
@@ -151,7 +154,12 @@ def _log_startup_status() -> None:
             pass
     print(f"[unicornforge] success model ready: {SUCCESS_PREDICTOR.ready}")
     print("[unicornforge] xAI configured:", bool(XAI_API_KEY))
-    print("[unicornforge] Gemini configured:", bool(GEMINI_API_KEY))
+    print(
+        "[unicornforge] dataset loaded:",
+        dataset["loaded"],
+        f"({dataset['rows']} rows)" if dataset["loaded"] else "",
+        f"from {dataset['path']}" if dataset["path"] else "",
+    )
 
 
 _log_startup_status()
@@ -196,77 +204,34 @@ def _attach_prediction(
 
 
 def _build_prompt(payload: GenerateBriefRequest) -> str:
+    mapped = map_request_to_features(
+        project_idea=payload.project_idea,
+        target_users=payload.target_users,
+        industry=payload.industry,
+        available_time=payload.available_time,
+        available_technologies=payload.available_technologies,
+    )
+    dataset_context = build_dataset_context(mapped.industry, mapped.tech_stack)
+
     return PROMPT_TEMPLATE.format(
         project_idea=payload.project_idea.strip(),
         target_users=_norm_field(payload.target_users),
-        industry=_norm_field(payload.industry),
+        industry=_norm_field(payload.industry, mapped.industry),
         available_time=_norm_field(payload.available_time),
-        available_technologies=_norm_field(payload.available_technologies),
+        available_technologies=_norm_field(payload.available_technologies, mapped.tech_stack),
+        dataset_context=dataset_context,
     )
 
 
-def _generate_template_brief(payload: GenerateBriefRequest) -> GenerateBriefResponse:
-    """Fallback brief generator used when LLM providers are unavailable."""
-    idea = payload.project_idea.strip()
-    target = _norm_field(payload.target_users, "End users")
-    industry = _norm_field(payload.industry, "Technology")
-    time_available = _norm_field(payload.available_time, "2 weeks")
-    tech = _norm_field(payload.available_technologies, "Standard tech stack")
-    tech_primary = tech.split(",")[0].strip() if "," in tech else tech.split()[0]
-
-    idea_words = [word for word in idea.lower().split() if len(word) > 3][:3]
-    keyword_str = " + ".join(idea_words) if idea_words else idea
-
-    return GenerateBriefResponse(
-        project_name=f"{idea} Platform",
-        one_sentence_pitch=(
-            f"A {industry.lower()}-focused solution that helps {target.lower()} with {idea.lower()}."
-        ),
-        problem=(
-            f"{target.capitalize()} struggle with inefficient solutions for {idea.lower()}. "
-            f"Current alternatives are complex, expensive, and don't integrate well. "
-            f"This creates friction and limits adoption in the {industry.lower()} space."
-        ),
-        solution=(
-            f"We're building a streamlined platform that addresses {keyword_str} with modern tech "
-            f"({tech.lower()}). The MVP focuses on core {idea.lower()} capabilities, leveraging "
-            f"{tech.lower()} for optimal performance."
-        ),
-        target_market=(
-            f"Primary: {target}. Secondary: organizations in {industry} seeking digital transformation. "
-            f"TAM: $500M+ in the {industry.lower()} sector."
-        ),
-        mvp_scope=(
-            f"Core features: {idea.lower()} automation, user dashboard, {tech_primary} APIs. "
-            f"Timeline: {time_available}. Tech: {tech}. "
-            "No: advanced analytics, multi-team support (Phase 2)."
-        ),
-        key_features=(
-            f"- Smart {idea.lower()} processing\n"
-            f"- Real-time dashboard\n"
-            f"- {tech_primary}-powered optimization\n"
-            "- One-click integrations\n"
-            "- Role-based access control\n"
-            "- Automated reporting"
-        ),
-        demo_scenario=(
-            f"1) Log in with demo account.\n"
-            f"2) Show {idea.lower()} workflow in action.\n"
-            "3) Demonstrate time/cost savings vs alternatives.\n"
-            f"4) Show {tech_primary} performance metrics.\n"
-            f"5) Q&A on {industry} use cases."
-        ),
-        business_model=(
-            f"Freemium tier (5 free {idea.lower()} operations/month). "
-            f"Pro ($29/mo): unlimited {idea.lower()} + priority support. "
-            "Enterprise: custom pricing + dedicated support. Target: 1000 paying users in Year 1."
-        ),
-        why_it_can_win=(
-            f"We solve a real pain point for {target.lower()} in {industry}. Built with {tech}, "
-            "we can scale efficiently. The market is hungry for solutions like this. "
-            "Our demo showcases immediate ROI. Hackathon win = proof of concept for enterprise pitch."
-        ),
+def _generate_dataset_brief_response(payload: GenerateBriefRequest) -> GenerateBriefResponse:
+    sections = generate_dataset_brief(
+        project_idea=payload.project_idea,
+        target_users=payload.target_users,
+        industry=payload.industry,
+        available_time=payload.available_time,
+        available_technologies=payload.available_technologies,
     )
+    return GenerateBriefResponse(**sections)
 
 
 def _parse_brief_from_text(text: str, payload: GenerateBriefRequest) -> GenerateBriefResponse:
@@ -341,21 +306,6 @@ def _call_grok_api(prompt: str) -> Optional[str]:
     return None
 
 
-def _call_gemini_api(prompt: str) -> Optional[str]:
-    if not GEMINI_API_KEY:
-        return None
-
-    try:
-        model = genai.GenerativeModel("gemini-pro")
-        response = model.generate_content(prompt)
-        if response.text:
-            return response.text
-    except Exception as exc:
-        print(f"[unicornforge] Error calling Gemini API: {exc}")
-
-    return None
-
-
 def _call_ai_model(
     prompt: str,
     payload: GenerateBriefRequest,
@@ -365,11 +315,7 @@ def _call_ai_model(
     if grok_text:
         return _attach_prediction(_parse_brief_from_text(grok_text, payload), prediction, "grok")
 
-    gemini_text = _call_gemini_api(prompt)
-    if gemini_text:
-        return _attach_prediction(_parse_brief_from_text(gemini_text, payload), prediction, "gemini")
-
-    return _attach_prediction(_generate_template_brief(payload), prediction, "template")
+    return _attach_prediction(_generate_dataset_brief_response(payload), prediction, "dataset")
 
 
 # ==== Routes =================================================================
@@ -384,16 +330,27 @@ async def generate_brief(payload: GenerateBriefRequest) -> GenerateBriefResponse
     if not payload.project_idea or not payload.project_idea.strip():
         raise HTTPException(status_code=400, detail="project_idea is required")
 
+    dataset = get_dataset_info()
+    if not dataset["loaded"]:
+        raise HTTPException(
+            status_code=503,
+            detail="global_startup_success_dataset.csv not found in backend/",
+        )
+
     prediction = _predict_success(payload)
     return _call_ai_model(_build_prompt(payload), payload, prediction)
 
 
 @app.get("/health")
 async def health():
+    dataset = get_dataset_info()
     return {
         "ok": True,
         "success_model_ready": SUCCESS_PREDICTOR.ready,
         "feature_columns": len(SUCCESS_PREDICTOR.feature_columns),
+        "dataset_loaded": dataset["loaded"],
+        "dataset_rows": dataset["rows"],
+        "dataset_path": dataset["path"],
         "torch_available": torch is not None,
         "cuda_available": (
             getattr(torch, "cuda", None) is not None and torch.cuda.is_available()
@@ -401,5 +358,4 @@ async def health():
             else False
         ),
         "xai_configured": bool(XAI_API_KEY),
-        "gemini_configured": bool(GEMINI_API_KEY),
     }
