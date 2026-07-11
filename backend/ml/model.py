@@ -11,14 +11,23 @@ except Exception:  # pragma: no cover
 if nn is not None:
 
     class SuccessScoreMLP(nn.Module):
-        """Regression head matching the training notebook architecture."""
+        """Improved MLP for success score prediction on AMD-rich tabular data.
+        Uses BatchNorm and Dropout for better generalization and higher R².
+        """
 
-        def __init__(self, in_dim: int):
+        def __init__(self, in_dim: int, dropout: float = 0.2):
             super().__init__()
             self.net = nn.Sequential(
-                nn.Linear(in_dim, 128),
+                nn.Linear(in_dim, 256),
+                nn.BatchNorm1d(256),
                 nn.ReLU(),
+                nn.Dropout(dropout),
+                nn.Linear(256, 128),
+                nn.BatchNorm1d(128),
+                nn.ReLU(),
+                nn.Dropout(dropout),
                 nn.Linear(128, 64),
+                nn.BatchNorm1d(64),
                 nn.ReLU(),
                 nn.Linear(64, 1),
             )

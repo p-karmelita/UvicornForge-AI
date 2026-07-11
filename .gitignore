@@ -9,7 +9,22 @@ backend/global-startup-success-dataset/
 !backend/global_startup_success_dataset.csv
 
 # Trained models (large binaries)
-backend/trained_models/
-*.pt
-*.pkl
 .env
+
+# Jupyter Notebooks
+.ipynb_checkpoints/
+*.ipynb_checkpoints/
+
+# AMD AAI Workshops artifacts (large models, caches, videos, checkpoints)
+notebooks/amd_aai_workshops/outputs/
+notebooks/amd_aai_workshops/checkpoints/
+notebooks/amd_aai_workshops/*.pt
+notebooks/amd_aai_workshops/*.bin
+notebooks/amd_aai_workshops/*.safetensors
+notebooks/amd_aai_workshops/*.mp4
+notebooks/amd_aai_workshops/*.avi
+notebooks/amd_aai_workshops/vllm_cache/
+notebooks/amd_aai_workshops/lmcache/
+notebooks/amd_aai_workshops/*.cache/
+notebooks/amd_aai_workshops/models/
+notebooks/amd_aai_workshops/data/

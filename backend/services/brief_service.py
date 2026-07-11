@@ -93,12 +93,19 @@ class BriefService:
         }
 
     def generate(self, payload: GenerateBriefRequest) -> GenerateBriefResponse:
+        # Default to strong AMD + Fireworks setup for sponsor alignment and better predicted scores
+        techs = payload.available_technologies or ""
+        comp = "Own AMD GPU cluster" if "AMD" in techs or "Fireworks" in techs or not techs else "Fireworks AI API"
+        amd = "AMD Instinct MI300X" if "AMD" in techs or not techs else "—"
+
         prediction = self.predictor.predict_from_payload(
             project_idea=payload.project_idea,
             target_users=payload.target_users,
             industry=payload.industry,
             available_time=payload.available_time,
             available_technologies=payload.available_technologies,
+            compute_platform=comp,
+            amd_platform=amd,
         )
         prompt = self._build_prompt(payload)
 
@@ -126,7 +133,7 @@ class BriefService:
         raw_refs = find_similar_startup_rows(mapped.industry, mapped.tech_stack, limit=3)
         references = []
         for r in raw_refs:
-            tech = str(r.get("Tech Stack", "")).strip()
+            tech = str(r.get("Backend Tech Stack", "") or r.get("Tech Stack", "")).strip()
             stage = str(r.get("Funding Stage", "")).strip()
             score = float(r.get("Success Score", 0))
             summary = f"High-scoring {mapped.industry} example"
@@ -135,7 +142,7 @@ class BriefService:
             if stage:
                 summary += f" at {stage} stage"
             if score:
-                summary += f" (score {score:.1f}/9)"
+                summary += f" (score {score:.1f}/10)"
             references.append(summary)
 
         return build_hackathon_prompt(

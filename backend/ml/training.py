@@ -68,7 +68,7 @@ def train_success_model(
     train_loader = DataLoader(StartupsDataset(x_train, y_train), batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(StartupsDataset(x_val, y_val), batch_size=256)
 
-    model = SuccessScoreMLP(x_train.shape[1]).to(device)
+    model = SuccessScoreMLP(x_train.shape[1], dropout=0.3).to(device)
     criterion = nn.MSELoss()
     optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 
