@@ -59,6 +59,22 @@
             font-size: 0.8rem;
             color: #9ca3af;
         }
+        .system-status {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin: 0.75rem 0 1rem;
+        }
+        .badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.55rem;
+            border-radius: 999px;
+            border: 1px solid #374151;
+            background: #111827;
+            color: #d1d5db;
+        }
+        .badge.ok { border-color: #166534; color: #86efac; }
+        .badge.warn { border-color: #92400e; color: #fcd34d; }
         @media (max-width: 768px) {
             .container { flex-direction: column; }
         }
@@ -68,6 +84,7 @@
     <h1>UnicornForge AI</h1>
     <p class="subtitle">Turn a rough idea into a structured startup brief in one click.</p>
     <p style="font-size:0.9rem; color:#f59e0b; margin-top:0.25rem;">Unicorn Track-ready: build with AMD GPUs or Fireworks AI credits — focus on product & pitch, not benchmarks.</p>
+    <div id="system_status" class="system-status"></div>
 
     <div class="container">
         <section class="panel">
@@ -112,6 +129,30 @@
         const copyBtn = document.getElementById("copy_btn");
         const statusEl = document.getElementById("status");
         const outputEl = document.getElementById("output");
+        const systemStatusEl = document.getElementById("system_status");
+
+        function badge(label, ok) {
+            const span = document.createElement("span");
+            span.className = `badge ${ok ? "ok" : "warn"}`;
+            span.textContent = label;
+            return span;
+        }
+
+        async function loadSystemStatus() {
+            try {
+                const response = await fetch(`${apiBaseUrl}/model-info`);
+                if (!response.ok) throw new Error("model-info unavailable");
+                const info = await response.json();
+                systemStatusEl.replaceChildren(
+                    badge(`Dataset: ${info.dataset_rows || 0} rows`, info.dataset_loaded),
+                    badge(`ML model: ${info.success_model_ready ? "ready" : "offline"}`, info.success_model_ready),
+                    badge(`GPU: ${info.cuda_available ? (info.device_name || "available") : "cpu"}`, info.cuda_available),
+                    badge(`Brief source: ${info.xai_configured ? "Grok + dataset fallback" : "dataset"}`, true),
+                );
+            } catch (err) {
+                systemStatusEl.replaceChildren(badge("System status unavailable", false));
+            }
+        }
 
         function getFormData() {
             return {
@@ -138,6 +179,9 @@
             }
             if (brief.score_factors) {
                 lines.push("", `**Score factors:** industry=${brief.score_factors.industry}, tech=${brief.score_factors.tech_stack}, stage=${brief.score_factors.funding_stage}`);
+            }
+            if (brief.llm_source) {
+                lines.push("", `**Brief source:** ${brief.llm_source}${brief.model_source ? ` | score model: ${brief.model_source}` : ""}`);
             }
             if (brief.similar_startups && brief.similar_startups.length) {
                 lines.push("", `**Similar startups from dataset:**`);
@@ -212,11 +256,12 @@
                     const brief = await response.json();
                 outputEl.textContent = toMarkdown(brief);
                 // show success score if present
+                const source = brief.llm_source ? `Source: ${brief.llm_source}. ` : "";
                 if (brief.success_score !== null && brief.success_score !== undefined) {
                     const label = brief.success_label ? ` — ${brief.success_label}` : "";
-                    statusEl.textContent = `Done. Success score: ${brief.success_score.toFixed(1)}/9${label}.`;
+                    statusEl.textContent = `${source}Success score: ${brief.success_score.toFixed(1)}/9${label}.`;
                 } else {
-                    statusEl.textContent = "Done.";
+                    statusEl.textContent = `${source}Done.`;
                 }
             } catch (err) {
                 console.error(err);
@@ -243,6 +288,7 @@
 
         generateBtn.addEventListener("click", generateBrief);
         copyBtn.addEventListener("click", copyMarkdown);
+        loadSystemStatus();
     </script>
 </body>
 </html>
