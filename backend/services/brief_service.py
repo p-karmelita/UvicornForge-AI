@@ -9,7 +9,7 @@ from ml.dataset import find_similar_startup_rows, get_dataset_info
 from ml.feature_mapper import map_request_to_features
 from ml.predictor import PredictionResult, SuccessPredictor
 from ml.prompts import build_hackathon_prompt
-from services.grok_client import GrokClient
+from services.fireworks_client import FireworksClient
 
 
 class GenerateBriefRequest(BaseModel):
@@ -50,10 +50,10 @@ class BriefService:
     def __init__(
         self,
         predictor: Optional[SuccessPredictor] = None,
-        grok_client: Optional[GrokClient] = None,
+        fireworks_client: Optional[FireworksClient] = None,
     ):
         self.predictor = predictor or SuccessPredictor()
-        self.grok = grok_client or GrokClient()
+        self.fireworks = fireworks_client or FireworksClient()
 
     def get_model_info(self) -> dict:
         dataset = get_dataset_info()
@@ -78,11 +78,11 @@ class BriefService:
             "torch_available": torch_available,
             "cuda_available": cuda_available,
             "device_name": device_name,
-            "xai_configured": self.grok.configured,
-            "xai_key_format_valid": self.grok.key_format_valid,
-            "xai_model": self.grok.model,
-            "grok_last_error": self.grok.last_error,
-            "grok_help": self.grok.status().get("help"),
+            "fireworks_configured": self.fireworks.configured,
+            "fireworks_key_format_valid": self.fireworks.key_format_valid,
+            "fireworks_model": self.fireworks.model,
+            "fireworks_last_error": self.fireworks.last_error,
+            "fireworks_help": self.fireworks.status().get("help"),
             "training_samples": training_meta.get("training_samples"),
             "validation_samples": training_meta.get("validation_samples"),
             "final_val_mse": training_meta.get("final_val_mse"),
@@ -102,10 +102,10 @@ class BriefService:
         )
         prompt = self._build_prompt(payload)
 
-        grok_brief = self.grok.generate_brief(prompt)
-        if grok_brief is not None:
-            brief = GenerateBriefResponse(**grok_brief.model_dump())
-            return self._attach_prediction(brief, prediction, "grok")
+        fireworks_brief = self.fireworks.generate_brief(prompt)
+        if fireworks_brief is not None:
+            brief = GenerateBriefResponse(**fireworks_brief.model_dump())
+            return self._attach_prediction(brief, prediction, "fireworks")
 
         brief = self._generate_dataset_brief(payload)
         return self._attach_prediction(brief, prediction, "dataset")

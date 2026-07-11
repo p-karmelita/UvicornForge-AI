@@ -151,7 +151,7 @@
                     badge(`ML model: ${info.success_model_ready ? "ready" : "offline"}`, info.success_model_ready),
                     badge(`Validation: ${metrics}`, info.val_r2 != null),
                     badge(`GPU: ${info.cuda_available ? (info.device_name || "available") : "cpu"}`, info.cuda_available),
-                    badge(`Brief source: ${info.xai_configured ? "Grok + dataset fallback" : "dataset"}`, true),
+                    badge(`Brief source: ${info.fireworks_configured ? "Fireworks + dataset fallback" : "dataset"}`, true),
                 );
             } catch (err) {
                 console.warn("Could not load system status from", apiBaseUrl, err);

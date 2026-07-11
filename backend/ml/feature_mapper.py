@@ -60,37 +60,50 @@ def _match_industry(industry: Optional[str], project_idea: str) -> str:
             return close[0]
 
     haystack = _normalize(f"{industry or ''} {project_idea}")
+    # Score actual categories from data using keyword groups
     scores = {name: 0 for name in categories}
-    for name, keywords in INDUSTRY_KEYWORDS.items():
-        for keyword in keywords:
-            if keyword in haystack:
-                scores[name] += 1
+    for coarse, keywords in INDUSTRY_KEYWORDS.items():
+        for cat in categories:
+            if any(kw in cat.lower() for kw in [coarse.lower()] + keywords):
+                for keyword in keywords:
+                    if keyword in haystack:
+                        scores[cat] += 1
+                        break
 
     best = max(scores, key=scores.get)
     if scores[best] > 0:
         return best
 
-    return "Tech"
+    # fallback: pick first or "Enterprise SaaS"
+    return categories[0] if categories else "Enterprise SaaS"
 
 
 def _match_tech_stack(available_technologies: Optional[str]) -> str:
-    categories = get_category_values()["Tech Stack"]
+    # Use Backend Tech Stack from new schema (more relevant for AMD/Fireworks)
+    cat_key = "Backend Tech Stack"
+    try:
+        categories = get_category_values()[cat_key]
+    except KeyError:
+        categories = ["Python, FastAPI", "Node.js, Express", "Java, Spring Boot"]
     haystack = _normalize(available_technologies)
     if not haystack:
-        return "Python, AI"
+        return categories[0] if categories else "Python, FastAPI"
 
     scores = {name: 0 for name in categories}
     for name, keywords in TECH_KEYWORDS.items():
         for keyword in keywords:
             if keyword in haystack:
-                scores[name] += 1
+                # score categories that contain the coarse name
+                for cat in categories:
+                    if name.split(",")[0].lower() in cat.lower():
+                        scores[cat] += 1
 
     best = max(scores, key=scores.get)
     if scores[best] > 0:
         return best
 
     close = get_close_matches((available_technologies or "").strip(), categories, n=1, cutoff=0.45)
-    return close[0] if close else "Python, AI"
+    return close[0] if close else (categories[0] if categories else "Python, FastAPI")
 
 
 def _infer_funding_stage(available_time: Optional[str]) -> str:
