@@ -42,8 +42,9 @@ def generate_dataset_brief(
     # Avoid leaking synthetic "Startup_XXX" names to users
     reference_names = "leading performers in the dataset"
     if references:
-        # Extract useful signals without names
-        techs = {str(r.get("Tech Stack", "")) for r in references if r.get("Tech Stack")}
+        # Extract useful signals without names (new schema)
+        techs = {str(r.get("Backend Tech Stack", "") or r.get("Tech Stack", "")) for r in references}
+        techs = {t for t in techs if t}
         reference_names = ", ".join(sorted(techs)) or reference_names
 
     # Keep short, non-leaking insights for internal use only (not dumped raw)
