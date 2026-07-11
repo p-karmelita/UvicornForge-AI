@@ -119,11 +119,13 @@
     </div>
 
     <script>
-        const apiBaseUrl =
-            (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") &&
-            window.location.port === "8000"
-                ? window.location.origin
-                : "http://localhost:8000";
+        // Determine API base:
+        // - If the HTML is served by the backend (http/https), use the current origin (works on any port).
+        // - Otherwise (opened directly as file://), fall back to localhost:8000.
+        let apiBaseUrl = "http://localhost:8000";
+        if (window.location.protocol === "http:" || window.location.protocol === "https:") {
+            apiBaseUrl = window.location.origin;
+        }
 
         const generateBtn = document.getElementById("generate_btn");
         const copyBtn = document.getElementById("copy_btn");
@@ -152,7 +154,8 @@
                     badge(`Brief source: ${info.xai_configured ? "Grok + dataset fallback" : "dataset"}`, true),
                 );
             } catch (err) {
-                systemStatusEl.replaceChildren(badge("System status unavailable", false));
+                console.warn("Could not load system status from", apiBaseUrl, err);
+                systemStatusEl.replaceChildren(badge("Backend not reachable (check if running)", false));
             }
         }
 
@@ -266,8 +269,14 @@
                     statusEl.textContent = `${source}Done.`;
                 }
             } catch (err) {
-                console.error(err);
-                statusEl.textContent = "Error: " + (err.message || "please try again.");
+                console.error("Fetch error to", apiBaseUrl, err);
+                let msg = "Failed to reach backend.";
+                if (err.message && err.message.includes("fetch")) {
+                    msg += ` Is the backend running on ${apiBaseUrl}?`;
+                } else if (err.message) {
+                    msg += " " + err.message;
+                }
+                statusEl.textContent = msg;
             } finally {
                 generateBtn.disabled = false;
             }

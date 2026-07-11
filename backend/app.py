@@ -17,11 +17,6 @@ from services.brief_service import (
 
 load_dotenv()
 
-try:
-    import torch
-except Exception:  # pragma: no cover
-    torch = None
-
 app = FastAPI(
     title="UnicornForge AI Backend",
     description="MVP API for generating structured startup briefs.",
@@ -30,12 +25,12 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["null"],
-    allow_origin_regex=r"https?://(localhost|127\.0\.0\.1)(:\d+)?",
-    allow_credentials=True,
+    # Permissive settings for local dev (file:// + localhost on any port).
+    # No credentials are used by the frontend, so we can safely use "*".
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["*"],
     max_age=3600,
 )
 
@@ -46,8 +41,13 @@ BRIEF_SERVICE = BriefService()
 def _log_startup_status() -> None:
     info = BRIEF_SERVICE.get_model_info()
     print("[unicornforge] torch available:", info["torch_available"])
-    if info["torch_available"] and torch is not None:
-        print("[unicornforge] torch.__version__:", torch.__version__)
+    if info["torch_available"]:
+        try:
+            import torch as _torch
+
+            print("[unicornforge] torch.__version__:", _torch.__version__)
+        except Exception:
+            pass
     print("[unicornforge] cuda available:", info["cuda_available"])
     if info["device_name"]:
         print("[unicornforge] device:", info["device_name"])
@@ -102,3 +102,11 @@ async def model_metrics():
         return evaluate_saved_model()
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    # Allows running directly via `python app.py` from the backend directory (handy in PyCharm etc).
+    # Recommended: use run_local.sh or `python -m uvicorn app:app --reload`
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
