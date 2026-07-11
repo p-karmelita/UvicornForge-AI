@@ -124,14 +124,25 @@ def find_similar_startup_rows(industry: str, tech_stack: str, limit: int = 3) ->
 
 
 def find_similar_startups(industry: str, tech_stack: str, limit: int = 3) -> list[dict[str, str]]:
-    return [
-        {
-            "name": str(row.get("Startup Name", "Unknown")),
+    """Return anonymized similar startups for user display.
+
+    The raw dataset uses synthetic names (Startup_N) and unrealistic scale,
+    so we show generic labels + only the success signal.
+    """
+    rows = find_similar_startup_rows(industry, tech_stack, limit)
+    results = []
+    for i, row in enumerate(rows, 1):
+        score = float(row.get(TARGET_COLUMN, 0))
+        tech = str(row.get("Tech Stack", "")).strip()
+        label = f"Top {industry} performer #{i}"
+        if tech:
+            label += f" ({tech.split(',')[0].strip()})"
+        results.append({
+            "name": label,
             "industry": str(row.get("Industry", industry)),
-            "score": f"{float(row.get(TARGET_COLUMN, 0)):.1f}",
-        }
-        for row in find_similar_startup_rows(industry, tech_stack, limit)
-    ]
+            "score": f"{score:.1f}",
+        })
+    return results
 
 
 def build_dataset_context(industry: str, tech_stack: str, limit: int = 3) -> str:

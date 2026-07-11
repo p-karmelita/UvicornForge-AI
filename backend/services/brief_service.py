@@ -8,7 +8,7 @@ from ml.brief_generator import generate_dataset_brief
 from ml.dataset import find_similar_startup_rows, get_dataset_info
 from ml.feature_mapper import map_request_to_features
 from ml.predictor import PredictionResult, SuccessPredictor
-from ml.prompts import build_hackathon_prompt, row_to_description
+from ml.prompts import build_hackathon_prompt
 from services.grok_client import GrokClient
 
 
@@ -121,10 +121,23 @@ class BriefService:
             available_time=payload.available_time,
             available_technologies=payload.available_technologies,
         )
-        references = [
-            row_to_description(row)
-            for row in find_similar_startup_rows(mapped.industry, mapped.tech_stack, limit=3)
-        ]
+        # Use short, non-leaking pattern summaries for the LLM prompt
+        # (raw row_to_description contains unrealistic scale and synthetic names)
+        raw_refs = find_similar_startup_rows(mapped.industry, mapped.tech_stack, limit=3)
+        references = []
+        for r in raw_refs:
+            tech = str(r.get("Tech Stack", "")).strip()
+            stage = str(r.get("Funding Stage", "")).strip()
+            score = float(r.get("Success Score", 0))
+            summary = f"High-scoring {mapped.industry} example"
+            if tech:
+                summary += f" using {tech.split(',')[0]}"
+            if stage:
+                summary += f" at {stage} stage"
+            if score:
+                summary += f" (score {score:.1f}/9)"
+            references.append(summary)
+
         return build_hackathon_prompt(
             project_idea=payload.project_idea.strip(),
             target_users=self._norm_field(payload.target_users),
