@@ -52,7 +52,7 @@ def _log_startup_status() -> None:
     if info["device_name"]:
         print("[unicornforge] device:", info["device_name"])
     print("[unicornforge] success model ready:", info["success_model_ready"])
-    print("[unicornforge] xAI configured:", info["xai_configured"])
+    print("[unicornforge] fireworks configured:", info.get("fireworks_configured"))
     print(
         "[unicornforge] dataset loaded:",
         info["dataset_loaded"],

@@ -8,8 +8,8 @@ from ml.brief_generator import generate_dataset_brief
 from ml.dataset import find_similar_startup_rows, get_dataset_info
 from ml.feature_mapper import map_request_to_features
 from ml.predictor import PredictionResult, SuccessPredictor
-from ml.prompts import build_hackathon_prompt, row_to_description
-from services.grok_client import GrokClient
+from ml.prompts import build_hackathon_prompt
+from services.fireworks_client import FireworksClient
 
 
 class GenerateBriefRequest(BaseModel):
@@ -50,10 +50,10 @@ class BriefService:
     def __init__(
         self,
         predictor: Optional[SuccessPredictor] = None,
-        grok_client: Optional[GrokClient] = None,
+        fireworks_client: Optional[FireworksClient] = None,
     ):
         self.predictor = predictor or SuccessPredictor()
-        self.grok = grok_client or GrokClient()
+        self.fireworks = fireworks_client or FireworksClient()
 
     def get_model_info(self) -> dict:
         dataset = get_dataset_info()
@@ -78,11 +78,11 @@ class BriefService:
             "torch_available": torch_available,
             "cuda_available": cuda_available,
             "device_name": device_name,
-            "xai_configured": self.grok.configured,
-            "xai_key_format_valid": self.grok.key_format_valid,
-            "xai_model": self.grok.model,
-            "grok_last_error": self.grok.last_error,
-            "grok_help": self.grok.status().get("help"),
+            "fireworks_configured": self.fireworks.configured,
+            "fireworks_key_format_valid": self.fireworks.key_format_valid,
+            "fireworks_model": self.fireworks.model,
+            "fireworks_last_error": self.fireworks.last_error,
+            "fireworks_help": self.fireworks.status().get("help"),
             "training_samples": training_meta.get("training_samples"),
             "validation_samples": training_meta.get("validation_samples"),
             "final_val_mse": training_meta.get("final_val_mse"),
@@ -102,10 +102,10 @@ class BriefService:
         )
         prompt = self._build_prompt(payload)
 
-        grok_brief = self.grok.generate_brief(prompt)
-        if grok_brief is not None:
-            brief = GenerateBriefResponse(**grok_brief.model_dump())
-            return self._attach_prediction(brief, prediction, "grok")
+        fireworks_brief = self.fireworks.generate_brief(prompt)
+        if fireworks_brief is not None:
+            brief = GenerateBriefResponse(**fireworks_brief.model_dump())
+            return self._attach_prediction(brief, prediction, "fireworks")
 
         brief = self._generate_dataset_brief(payload)
         return self._attach_prediction(brief, prediction, "dataset")
@@ -121,10 +121,23 @@ class BriefService:
             available_time=payload.available_time,
             available_technologies=payload.available_technologies,
         )
-        references = [
-            row_to_description(row)
-            for row in find_similar_startup_rows(mapped.industry, mapped.tech_stack, limit=3)
-        ]
+        # Use short, non-leaking pattern summaries for the LLM prompt
+        # (raw row_to_description contains unrealistic scale and synthetic names)
+        raw_refs = find_similar_startup_rows(mapped.industry, mapped.tech_stack, limit=3)
+        references = []
+        for r in raw_refs:
+            tech = str(r.get("Tech Stack", "")).strip()
+            stage = str(r.get("Funding Stage", "")).strip()
+            score = float(r.get("Success Score", 0))
+            summary = f"High-scoring {mapped.industry} example"
+            if tech:
+                summary += f" using {tech.split(',')[0]}"
+            if stage:
+                summary += f" at {stage} stage"
+            if score:
+                summary += f" (score {score:.1f}/9)"
+            references.append(summary)
+
         return build_hackathon_prompt(
             project_idea=payload.project_idea.strip(),
             target_users=self._norm_field(payload.target_users),

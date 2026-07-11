@@ -8,7 +8,8 @@ import requests
 from pydantic import BaseModel, Field
 
 
-class GrokBriefPayload(BaseModel):
+class FireworksBriefPayload(BaseModel):
+    """Same schema as before for structured brief output."""
     project_name: str = Field(description="Short product-like project name")
     one_sentence_pitch: str = Field(description="One concise sentence pitch")
     problem: str = Field(description="Problem statement")
@@ -51,11 +52,20 @@ BRIEF_JSON_SCHEMA = {
 }
 
 
-class GrokClient:
+class FireworksClient:
     def __init__(self) -> None:
-        self.api_key = os.getenv("XAI_API_KEY", "").strip()
-        self.api_base = os.getenv("XAI_API_BASE", "https://api.x.ai/v1").rstrip("/")
-        self.model = os.getenv("XAI_MODEL", "grok-4.5")
+        # Support both common env var names for the Fireworks key
+        self.api_key = (
+            os.getenv("FIREWORKS_API_KEY", "").strip()
+            or os.getenv("fireworks_key", "").strip()
+        )
+        self.api_base = os.getenv(
+            "FIREWORKS_API_BASE", "https://api.fireworks.ai/inference/v1"
+        ).rstrip("/")
+        # Default to a capable model available on Fireworks; override via env if needed
+        self.model = os.getenv(
+            "FIREWORKS_MODEL", "accounts/fireworks/models/llama-v3p1-8b-instruct"
+        )  # change to a model you have access to on Fireworks (e.g. qwen or llama)
         self.last_error: Optional[str] = None
 
     @property
@@ -66,7 +76,8 @@ class GrokClient:
     def key_format_valid(self) -> bool:
         if not self.api_key:
             return False
-        return not self.api_key.startswith("xai-token-")
+        # Fireworks keys typically start with "fw_"
+        return self.api_key.startswith("fw_")
 
     def status(self) -> dict:
         return {
@@ -77,17 +88,17 @@ class GrokClient:
             "help": (
                 None
                 if self.key_format_valid
-                else "Replace XAI_API_KEY with a key from https://console.x.ai (xai-token-* keys do not work with api.x.ai)."
+                else "Set FIREWORKS_API_KEY (or fireworks_key) in .env. Keys start with 'fw_'."
             ),
         }
 
-    def generate_brief(self, prompt: str) -> Optional[GrokBriefPayload]:
+    def generate_brief(self, prompt: str) -> Optional[FireworksBriefPayload]:
         if not self.configured:
-            self.last_error = "XAI_API_KEY is not set"
+            self.last_error = "FIREWORKS_API_KEY (or fireworks_key) is not set"
             return None
 
         if not self.key_format_valid:
-            self.last_error = "Invalid key format: use a console.x.ai API key, not xai-token-*"
+            self.last_error = "Invalid key format: Fireworks keys start with 'fw_'"
             print(f"[unicornforge] {self.last_error}")
             return None
 
@@ -99,42 +110,36 @@ class GrokClient:
         if not text:
             return None
 
+        # If primary model failed (e.g. 404), try common fallbacks once
+        for fallback in [
+            "accounts/fireworks/models/llama-v3p1-8b-instruct",
+            "accounts/fireworks/models/qwen2-72b-instruct",
+            "accounts/fireworks/models/mixtral-8x7b-instruct",
+        ]:
+            if self.model == fallback:
+                continue
+            old_model = self.model
+            self.model = fallback
+            try:
+                structured = self._generate_structured(prompt)
+                if structured:
+                    print(f"[unicornforge] Fell back to Fireworks model {fallback}")
+                    return structured
+            finally:
+                self.model = old_model
+            text = self._generate_text(prompt)
+            if text:
+                print(f"[unicornforge] Fell back to Fireworks model {fallback}")
+                return self._parse_text_fallback(text) if text else None
+        return None
+
         try:
             data = json.loads(text)
-            return GrokBriefPayload.model_validate(data)
+            return FireworksBriefPayload.model_validate(data)
         except Exception:
             return self._parse_text_fallback(text)
 
-    def test_connection(self) -> dict:
-        if not self.configured:
-            return {"ok": False, "error": "XAI_API_KEY is not set"}
-
-        if not self.key_format_valid:
-            return {
-                "ok": False,
-                "error": "Invalid key format. Obtain an API key from https://console.x.ai",
-            }
-
-        try:
-            response = requests.post(
-                f"{self.api_base}/chat/completions",
-                headers=self._headers(),
-                json={
-                    "model": self.model,
-                    "messages": [{"role": "user", "content": "Reply with the single word: pong"}],
-                    "max_tokens": 8,
-                },
-                timeout=30,
-            )
-            if response.ok:
-                return {"ok": True, "model": self.model}
-            self.last_error = response.text[:300]
-            return {"ok": False, "status_code": response.status_code, "error": self.last_error}
-        except Exception as exc:
-            self.last_error = str(exc)
-            return {"ok": False, "error": self.last_error}
-
-    def _generate_structured(self, prompt: str) -> Optional[GrokBriefPayload]:
+    def _generate_structured(self, prompt: str) -> Optional[FireworksBriefPayload]:
         try:
             response = requests.post(
                 f"{self.api_base}/chat/completions",
@@ -152,28 +157,24 @@ class GrokClient:
                         {"role": "user", "content": prompt},
                     ],
                     "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "startup_brief",
-                            "schema": BRIEF_JSON_SCHEMA,
-                            "strict": True,
-                        },
+                        "type": "json_object",
                     },
+                    "max_tokens": 2048,
                 },
                 timeout=120,
             )
             if not response.ok:
                 self.last_error = f"structured chat/completions {response.status_code}: {response.text[:300]}"
-                print(f"[unicornforge] Grok structured failed: {self.last_error}")
+                print(f"[unicornforge] Fireworks structured failed: {self.last_error}")
                 return None
 
             content = self._extract_chat_content(response.json())
             if not content:
                 return None
-            return GrokBriefPayload.model_validate(json.loads(content))
+            return FireworksBriefPayload.model_validate(json.loads(content))
         except Exception as exc:
             self.last_error = f"structured parse error: {exc}"
-            print(f"[unicornforge] Grok structured error: {exc}")
+            print(f"[unicornforge] Fireworks structured error: {exc}")
             return None
 
     def _generate_text(self, prompt: str) -> Optional[str]:
@@ -189,9 +190,9 @@ class GrokClient:
                         },
                         {"role": "user", "content": prompt},
                     ],
+                    "max_tokens": 2048,
                 },
             ),
-            ("responses", {"model": self.model, "input": prompt}),
         ):
             text = self._post(endpoint, payload)
             if text:
@@ -208,18 +209,19 @@ class GrokClient:
             )
             if not response.ok:
                 self.last_error = f"{endpoint} {response.status_code}: {response.text[:300]}"
-                print(f"[unicornforge] Grok {endpoint} failed: {self.last_error}")
+                print(f"[unicornforge] Fireworks {endpoint} failed: {self.last_error}")
                 return None
             return self._extract_response_text(endpoint, response.json())
         except Exception as exc:
             self.last_error = str(exc)
-            print(f"[unicornforge] Grok {endpoint} error: {exc}")
+            print(f"[unicornforge] Fireworks {endpoint} error: {exc}")
             return None
 
     def _headers(self) -> dict[str, str]:
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
+            "Accept": "application/json",
         }
 
     def _extract_chat_content(self, data: dict) -> Optional[str]:
@@ -231,20 +233,11 @@ class GrokClient:
         return content.strip() if isinstance(content, str) and content.strip() else None
 
     def _extract_response_text(self, endpoint: str, data: dict) -> Optional[str]:
-        if endpoint == "responses":
-            output_text = data.get("output_text")
-            if isinstance(output_text, str) and output_text.strip():
-                return output_text
-            for item in data.get("output", []):
-                if item.get("type") != "message":
-                    continue
-                for content in item.get("content", []):
-                    if content.get("type") == "output_text" and content.get("text"):
-                        return content["text"]
-            return None
+        # Fireworks primarily uses chat/completions
         return self._extract_chat_content(data)
 
-    def _parse_text_fallback(self, text: str) -> Optional[GrokBriefPayload]:
+    def _parse_text_fallback(self, text: str) -> Optional[FireworksBriefPayload]:
+        # Simple label-based fallback (same as before)
         sections: dict[str, str] = {}
         labels = {
             "project_name": "project name",
@@ -276,4 +269,4 @@ class GrokClient:
 
         if len(sections) < 4:
             return None
-        return GrokBriefPayload.model_validate(sections)
+        return FireworksBriefPayload.model_validate(sections)

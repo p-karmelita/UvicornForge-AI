@@ -30,9 +30,12 @@ class PredictionResult:
 
 
 def _score_label(score: float) -> str:
-    if score >= 7.5:
+    # Adjusted for new dataset (Success Score 1-10 scale)
+    if score >= 8.0:
+        return "Very strong potential"
+    if score >= 6.5:
         return "Strong potential"
-    if score >= 5.5:
+    if score >= 5.0:
         return "Moderate potential"
     if score >= 3.5:
         return "Early-stage risk"
@@ -119,8 +122,8 @@ class SuccessPredictor:
             with torch.no_grad():
                 raw = float(self.model(tensor).squeeze().cpu().numpy())
 
-            score = float(np.clip(raw, 1.0, 9.0))
-            normalized = (score - 1.0) / 8.0
+            score = float(np.clip(raw, 1.0, 10.0))
+            normalized = (score - 1.0) / 9.0  # adjusted for 1-10 range
             similar = find_similar_startups(mapped.industry, mapped.tech_stack)
 
             return PredictionResult(

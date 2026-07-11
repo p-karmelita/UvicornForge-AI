@@ -4,18 +4,18 @@ import pandas as pd
 
 
 def row_to_description(row: pd.Series) -> str:
-    """Canonical startup profile text — matches unicornforge_amd_training notebook."""
+    """Canonical startup profile text adapted for the new AMD-tailored dataset."""
     name = row.get("Startup Name", "")
     industry = row.get("Industry", "")
     country = row.get("Country", "")
     status = row.get("Funding Stage", "")
     founded_year = row.get("Founded Year", "")
-    total_funding = row.get("Total Funding ($M)", "")
-    employees = row.get("Number of Employees", "")
-    revenue = row.get("Annual Revenue ($M)", "")
-    valuation = row.get("Valuation ($B)", "")
-    customers = row.get("Customer Base (Millions)", "")
-    tech_stack = row.get("Tech Stack", "")
+    total_funding = row.get("Total Funding ($)", "") or row.get("Total Funding ($M)", "")
+    team_size = row.get("Team Size", "") or row.get("Number of Employees", "")
+    revenue = row.get("Monthly Recurring Revenue ($)", "") or row.get("Annual Revenue ($M)", "")
+    valuation = row.get("Valuation ($)", "") or row.get("Valuation ($B)", "")
+    customers = row.get("Customer Base", "") or row.get("Customer Base (Millions)", "")
+    tech_stack = row.get("Backend Tech Stack", "") or row.get("Tech Stack", "")
 
     parts = []
     if isinstance(name, str) and name:
