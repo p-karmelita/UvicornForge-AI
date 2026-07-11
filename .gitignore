@@ -2,13 +2,12 @@
 .venv/
 __pycache__/
 *.pyc
+.env
 
 # Local datasets
 backend/global-startup-success-dataset/
 *.csv
 !backend/global_startup_success_dataset.csv
-.env
-__pycache__/app.cpython-312.pyc
 
 # Jupyter Notebooks
 .ipynb_checkpoints/
