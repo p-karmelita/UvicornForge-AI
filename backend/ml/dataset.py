@@ -7,6 +7,9 @@ from typing import Optional
 
 import pandas as pd
 
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_DATASET_PATH = BACKEND_DIR / "global_startup_success_dataset.csv"
+
 CAT_COLUMNS = ["Country", "Industry", "Funding Stage", "Tech Stack"]
 NUM_COLUMNS = [
     "Founded Year",
@@ -16,7 +19,7 @@ NUM_COLUMNS = [
     "Customer Base (Millions)",
 ]
 TARGET_COLUMN = "Success Score"
-USED_COLUMNS = CAT_COLUMNS + NUM_COLUMNS + [TARGET_COLUMN]
+MODEL_COLUMNS = CAT_COLUMNS + NUM_COLUMNS + [TARGET_COLUMN]
 
 FUNDING_STAGE_MULTIPLIERS = {
     "Seed": 0.15,
@@ -27,41 +30,49 @@ FUNDING_STAGE_MULTIPLIERS = {
 }
 
 
-def _resolve_dataset_path() -> Optional[Path]:
+def get_dataset_path() -> Optional[Path]:
     env_path = os.getenv("STARTUP_DATASET_PATH")
-    if env_path and Path(env_path).exists():
-        return Path(env_path)
+    if env_path:
+        path = Path(env_path)
+        if path.exists():
+            return path
 
-    local_candidates = [
-        Path(__file__).resolve().parent.parent / "global_startup_success_dataset.csv",
-        Path(__file__).resolve().parent.parent / "global-startup-success-dataset" / "global_startup_success_dataset.csv",
-    ]
-    for candidate in local_candidates:
-        if candidate.exists():
-            return candidate
-
-    cache_glob = Path.home() / ".cache" / "kagglehub" / "datasets" / "hamnakaleemds" / "global-startup-success-dataset"
-    if cache_glob.exists():
-        for version_dir in sorted(cache_glob.glob("versions/*"), reverse=True):
-            csv_path = version_dir / "global_startup_success_dataset.csv"
-            if csv_path.exists():
-                return csv_path
+    if DEFAULT_DATASET_PATH.exists():
+        return DEFAULT_DATASET_PATH
 
     return None
 
 
 @lru_cache(maxsize=1)
-def load_dataset() -> Optional[pd.DataFrame]:
-    path = _resolve_dataset_path()
+def load_raw_dataset() -> Optional[pd.DataFrame]:
+    path = get_dataset_path()
     if path is None:
         return None
+    return pd.read_csv(path)
 
-    df = pd.read_csv(path)
-    missing = [col for col in USED_COLUMNS if col not in df.columns]
+
+@lru_cache(maxsize=1)
+def load_dataset() -> Optional[pd.DataFrame]:
+    df = load_raw_dataset()
+    if df is None:
+        return None
+
+    missing = [col for col in MODEL_COLUMNS if col not in df.columns]
     if missing:
-        raise ValueError(f"Dataset at {path} is missing columns: {missing}")
+        raise ValueError(f"Dataset at {get_dataset_path()} is missing columns: {missing}")
 
-    return df[USED_COLUMNS].dropna().reset_index(drop=True)
+    return df[MODEL_COLUMNS].dropna().reset_index(drop=True)
+
+
+def get_dataset_info() -> dict:
+    path = get_dataset_path()
+    df = load_raw_dataset()
+    return {
+        "loaded": df is not None,
+        "path": str(path) if path else None,
+        "rows": int(len(df)) if df is not None else 0,
+        "columns": list(df.columns) if df is not None else [],
+    }
 
 
 def get_category_values() -> dict[str, list[str]]:
@@ -93,39 +104,70 @@ def get_industry_medians(industry: str) -> dict[str, float]:
     if subset.empty:
         subset = df
 
-    medians = {}
-    for col in NUM_COLUMNS:
-        medians[col] = float(subset[col].median())
-    return medians
+    return {col: float(subset[col].median()) for col in NUM_COLUMNS}
 
 
-def find_similar_startups(industry: str, tech_stack: str, limit: int = 3) -> list[dict[str, str]]:
-    df = load_dataset()
-    if df is None:
+def find_similar_startup_rows(industry: str, tech_stack: str, limit: int = 3) -> list[pd.Series]:
+    df = load_raw_dataset()
+    if df is None or "Startup Name" not in df.columns:
         return []
 
-    full_path = _resolve_dataset_path()
-    if full_path is None:
-        return []
-
-    raw = pd.read_csv(full_path)
-    if "Startup Name" not in raw.columns:
-        return []
-
-    filtered = raw[raw["Industry"] == industry] if industry in raw["Industry"].values else raw
+    filtered = df[df["Industry"] == industry] if industry in df["Industry"].values else df
     if tech_stack and "Tech Stack" in filtered.columns:
         tech_filtered = filtered[filtered["Tech Stack"] == tech_stack]
         if not tech_filtered.empty:
             filtered = tech_filtered
 
-    top = filtered.nlargest(limit, TARGET_COLUMN)
-    results = []
-    for _, row in top.iterrows():
-        results.append(
-            {
-                "name": str(row.get("Startup Name", "Unknown")),
-                "industry": str(row.get("Industry", industry)),
-                "score": f"{float(row.get(TARGET_COLUMN, 0)):.1f}",
-            }
-        )
-    return results
+    return [row for _, row in filtered.nlargest(limit, TARGET_COLUMN).iterrows()]
+
+
+def find_similar_startups(industry: str, tech_stack: str, limit: int = 3) -> list[dict[str, str]]:
+    return [
+        {
+            "name": str(row.get("Startup Name", "Unknown")),
+            "industry": str(row.get("Industry", industry)),
+            "score": f"{float(row.get(TARGET_COLUMN, 0)):.1f}",
+        }
+        for row in find_similar_startup_rows(industry, tech_stack, limit)
+    ]
+
+
+def row_to_profile(row: pd.Series) -> str:
+    name = row.get("Startup Name", "This startup")
+    industry = row.get("Industry", "")
+    country = row.get("Country", "")
+    funding_stage = row.get("Funding Stage", "")
+    founded_year = row.get("Founded Year", "")
+    total_funding = row.get("Total Funding ($M)", "")
+    employees = row.get("Number of Employees", "")
+    revenue = row.get("Annual Revenue ($M)", "")
+    customers = row.get("Customer Base (Millions)", "")
+    tech_stack = row.get("Tech Stack", "")
+    success_score = row.get(TARGET_COLUMN, "")
+
+    parts = [f"{name} operates in the {industry} industry based in {country}."]
+    if pd.notna(founded_year) and founded_year != "":
+        parts.append(f"Founded in {int(float(founded_year))}.")
+    if pd.notna(total_funding) and total_funding != "":
+        parts.append(f"Raised around {total_funding}M USD ({funding_stage}).")
+    if pd.notna(employees) and employees != "":
+        parts.append(f"Employs about {employees} people.")
+    if pd.notna(revenue) and revenue != "":
+        parts.append(f"Annual revenue near {revenue}M USD.")
+    if pd.notna(customers) and customers != "":
+        parts.append(f"Serves roughly {customers}M customers.")
+    if isinstance(tech_stack, str) and tech_stack:
+        parts.append(f"Tech stack: {tech_stack}.")
+    if pd.notna(success_score) and success_score != "":
+        parts.append(f"Success score: {float(success_score):.1f}/9.")
+
+    return " ".join(parts)
+
+
+def build_dataset_context(industry: str, tech_stack: str, limit: int = 3) -> str:
+    rows = find_similar_startup_rows(industry, tech_stack, limit)
+    if not rows:
+        return "No comparable startup profiles found in global_startup_success_dataset.csv."
+
+    profiles = [f"- {row_to_profile(row)}" for row in rows]
+    return "Comparable startups from global_startup_success_dataset.csv:\n" + "\n".join(profiles)
