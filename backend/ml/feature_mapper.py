@@ -74,17 +74,19 @@ def _match_industry(industry: Optional[str], project_idea: str) -> str:
     if scores[best] > 0:
         return best
 
-    # fallback: pick first or "Enterprise SaaS"
+    # fallback to first available category
     return categories[0] if categories else "Enterprise SaaS"
 
 
 def _match_tech_stack(available_technologies: Optional[str]) -> str:
     # Use Backend Tech Stack from new schema (more relevant for AMD/Fireworks)
+    cat_values = get_category_values()
     cat_key = "Backend Tech Stack"
-    try:
-        categories = get_category_values()[cat_key]
-    except KeyError:
-        categories = ["Python, FastAPI", "Node.js, Express", "Java, Spring Boot"]
+    if cat_key in cat_values:
+        categories = cat_values[cat_key]
+    else:
+        # fallback for old or missing
+        categories = cat_values.get("Tech Stack", ["Python, FastAPI", "Node.js, Express", "Java, Spring Boot"])
     haystack = _normalize(available_technologies)
     if not haystack:
         return categories[0] if categories else "Python, FastAPI"
@@ -150,8 +152,13 @@ def map_request_to_features(
     industry: Optional[str] = None,
     available_time: Optional[str] = None,
     available_technologies: Optional[str] = None,
+    compute_platform: Optional[str] = None,
+    amd_platform: Optional[str] = None,
 ) -> MappedFeatures:
-    """Translate free-form user input into dataset-aligned model features."""
+    """Translate free-form user input into dataset-aligned model features.
+    Now supports explicit AMD/Fireworks choices to show their positive impact
+    on predicted success score.
+    """
     matched_industry = _match_industry(industry, project_idea)
     matched_tech = _match_tech_stack(available_technologies)
     matched_stage = _infer_funding_stage(available_time)
@@ -172,16 +179,21 @@ def map_request_to_features(
         "Social Media Followers": max(50.0, medians.get("Social Media Followers", 500.0) * multiplier),
     }
 
+    # Default to strong AMD + Fireworks setup to showcase sponsor tech advantage
+    comp = compute_platform or "Own AMD GPU cluster"
+    amd = amd_platform or "AMD Instinct MI300X"
+    primary_model = "Qwen2.5" if "AMD" in amd or "ROCm" in amd else "Mixtral 8x7B"
+
     # Build row using new column names + AMD tech choices
     row = {
         "Industry": matched_industry,
         "Funding Stage": matched_stage,
-        "Product Stage": "MVP",                    # sensible default for hackathon
+        "Product Stage": "MVP",
         "Backend Tech Stack": matched_tech,
-        "Frontend Tech": "React",                  # default
-        "Compute Platform": "Own AMD GPU cluster", # default — this is powerful for scoring
-        "AMD Platform Used": "AMD Instinct MI300X",
-        "Primary Model Used": "Qwen2.5",
+        "Frontend Tech": "React",
+        "Compute Platform": comp,
+        "AMD Platform Used": amd,
+        "Primary Model Used": primary_model,
         **numeric,
     }
 
@@ -189,8 +201,8 @@ def map_request_to_features(
         "industry": matched_industry,
         "tech_stack": matched_tech,
         "funding_stage": matched_stage,
-        "compute_platform": row["Compute Platform"],
-        "amd_platform": row["AMD Platform Used"],
+        "compute_platform": comp,
+        "amd_platform": amd,
         "stage_multiplier": f"{multiplier:.2f}",
     }
 
@@ -200,7 +212,7 @@ def map_request_to_features(
         tech_stack=matched_tech,
         funding_stage=matched_stage,
         country=matched_country,
-        compute_platform=row.get("Compute Platform", "Own AMD GPU cluster"),
-        amd_platform=row.get("AMD Platform Used", "AMD Instinct MI300X"),
+        compute_platform=comp,
+        amd_platform=amd,
         factors=factors,
     )

@@ -98,7 +98,7 @@ def get_category_values() -> dict[str, list[str]]:
     df = load_dataset()
     if df is None:
         # Realistic defaults based on new AMD-tailored dataset
-        return {
+        defaults = {
             "Industry": ["FinTech AI", "Climate & Energy AI", "Gaming AI", "Enterprise SaaS", "EdTech AI", "Logistics & Supply Chain AI"],
             "Funding Stage": ["Pre-Seed", "Bootstrapped", "Angel", "Seed", "Series A"],
             "Product Stage": ["Idea / Concept", "Prototype", "MVP", "Private Beta", "Public Beta"],
@@ -108,8 +108,15 @@ def get_category_values() -> dict[str, list[str]]:
             "AMD Platform Used": ["AMD Instinct MI300X", "ROCm on MI300X cluster", "AMD Instinct MI250", "AMD Radeon PRO W7900"],
             "Primary Model Used": ["Qwen2.5", "Llama 3.1", "DeepSeek", "Mixtral"],
         }
+        # alias for backward compatibility in old code
+        defaults["Tech Stack"] = defaults["Backend Tech Stack"]
+        return defaults
 
-    return {col: sorted(df[col].dropna().unique().tolist()) for col in CAT_COLUMNS}
+    cats = {col: sorted(df[col].dropna().unique().tolist()) for col in CAT_COLUMNS}
+    # alias for old code that still looks for "Tech Stack"
+    if "Backend Tech Stack" in cats:
+        cats["Tech Stack"] = cats["Backend Tech Stack"]
+    return cats
 
 
 def get_industry_medians(industry: str) -> dict[str, float]:
@@ -163,7 +170,7 @@ def find_similar_startups(industry: str, tech_stack: str, limit: int = 3) -> lis
     results = []
     for i, row in enumerate(rows, 1):
         score = float(row.get(TARGET_COLUMN, 0))
-        tech = str(row.get("Tech Stack", "")).strip()
+        tech = str(row.get("Backend Tech Stack", "") or row.get("Tech Stack", "")).strip()
         label = f"Top {industry} performer #{i}"
         if tech:
             label += f" ({tech.split(',')[0].strip()})"

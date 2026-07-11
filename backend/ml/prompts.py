@@ -4,7 +4,9 @@ import pandas as pd
 
 
 def row_to_description(row: pd.Series) -> str:
-    """Canonical startup profile text adapted for the new AMD-tailored dataset."""
+    """Canonical startup profile text adapted for the new AMD-tailored dataset.
+    Handles both old and new column names for backward compatibility.
+    """
     name = row.get("Startup Name", "")
     industry = row.get("Industry", "")
     country = row.get("Country", "")
@@ -38,11 +40,11 @@ def row_to_description(row: pd.Series) -> str:
     if pd.notna(total_funding) and total_funding != "":
         extra.append(f"It has raised around {total_funding} million USD in funding.")
 
-    if pd.notna(employees) and employees != "":
-        extra.append(f"It employs approximately {employees} people.")
+    if pd.notna(team_size) and team_size != "":
+        extra.append(f"It employs approximately {team_size} people.")
 
     if pd.notna(revenue) and revenue != "":
-        extra.append(f"It generates about {revenue} million USD in annual revenue.")
+        extra.append(f"It generates about {revenue} million USD in monthly recurring revenue.")
 
     if pd.notna(valuation) and valuation != "":
         extra.append(f"Its valuation is estimated at {valuation} billion USD.")
@@ -58,13 +60,15 @@ def row_to_description(row: pd.Series) -> str:
 
     success_score = row.get("Success Score")
     if pd.notna(success_score) and success_score != "":
-        extra.append(f"Its success score is {float(success_score):.1f}/9.")
+        extra.append(f"Its success score is {float(success_score):.1f}/10.")
 
     return " ".join([sentence] + extra)
 
 
+# Legacy function kept only for the old training notebook.
+# The current system uses build_hackathon_prompt + sanitized references.
 def build_unicornforge_prompt(startup_profile: str) -> str:
-    """Prompt template from the training notebook for LLM brief generation."""
+    """Legacy prompt template (only for unicornforge_amd_training.ipynb)."""
     return f"""You are an experienced startup advisor and hackathon mentor.
 
 Based on the following real-world startup profile, generate a structured startup brief with 10 sections:

@@ -101,6 +101,8 @@ class SuccessPredictor:
         industry: Optional[str] = None,
         available_time: Optional[str] = None,
         available_technologies: Optional[str] = None,
+        compute_platform: Optional[str] = None,
+        amd_platform: Optional[str] = None,
     ) -> Optional[PredictionResult]:
         mapped = map_request_to_features(
             project_idea=project_idea,
@@ -108,6 +110,8 @@ class SuccessPredictor:
             industry=industry,
             available_time=available_time,
             available_technologies=available_technologies,
+            compute_platform=compute_platform,
+            amd_platform=amd_platform,
         )
         return self.predict_from_mapped(mapped)
 
