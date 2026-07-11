@@ -37,6 +37,14 @@ class GenerateBriefResponse(BaseModel):
     demo_scenario: str
     business_model: str
     why_it_can_win: str
+    # High business value additions
+    risks_and_mitigations: Optional[str] = None
+    go_to_market: Optional[str] = None
+    key_metrics_to_track: Optional[str] = None
+    recommended_next_steps: Optional[str] = None
+    hackathon_tips: Optional[str] = None
+    improvement_suggestions: Optional[str] = None   # High-value: actionable advice from the model + factors
+
     success_score: Optional[float] = None
     success_score_normalized: Optional[float] = None
     success_label: Optional[str] = None
@@ -93,10 +101,22 @@ class BriefService:
         }
 
     def generate(self, payload: GenerateBriefRequest) -> GenerateBriefResponse:
-        # Default to strong AMD + Fireworks setup for sponsor alignment and better predicted scores
-        techs = payload.available_technologies or ""
-        comp = "Own AMD GPU cluster" if "AMD" in techs or "Fireworks" in techs or not techs else "Fireworks AI API"
-        amd = "AMD Instinct MI300X" if "AMD" in techs or not techs else "—"
+        # Honest defaults: only apply strong AMD/Fireworks when user explicitly mentions them.
+        # This keeps the success score credible and high-business-value (reward real choices).
+        techs = (payload.available_technologies or "").lower()
+        mentions_amd = any(k in techs for k in ["amd", "mi300", "mi250", "rocm", "instinct"])
+        mentions_fw = "fireworks" in techs
+
+        if mentions_amd:
+            comp = "Own AMD GPU cluster"
+            amd = "AMD Instinct MI300X" if "mi300" in techs or "300" in techs else "AMD Instinct MI250"
+        elif mentions_fw:
+            comp = "Fireworks AI API"
+            amd = "—"
+        else:
+            # Neutral realistic default for a hackathon team
+            comp = "Cloud GPU (generic)"
+            amd = "—"
 
         prediction = self.predictor.predict_from_payload(
             project_idea=payload.project_idea,
@@ -185,4 +205,28 @@ class BriefService:
                     ],
                 }
             )
+
+            # High-business-value: synthesize concrete improvement suggestions
+            suggestions = self._build_improvement_suggestions(prediction, response)
+            if suggestions:
+                updates["improvement_suggestions"] = suggestions
+
         return response.model_copy(update=updates)
+
+    def _build_improvement_suggestions(self, prediction: "PredictionResult", brief: GenerateBriefResponse) -> str:
+        tips = []
+        factors = prediction.factors or {}
+        score = prediction.score or 6.0
+
+        if "AMD" not in str(factors.get("compute_platform", "")) and "AMD" not in str(factors.get("amd_platform", "")):
+            tips.append("Explicitly use AMD GPUs / ROCm in your demo and tech description — it gives a measurable lift in our model.")
+        if factors.get("team_size") and float(str(factors.get("team_size", "3")).split("-")[0] or 3) < 4:
+            tips.append("Consider highlighting (or increasing) team size / complementary skills — small teams score lower on average.")
+        if "Fireworks" not in str(brief.key_features or "") and "Fireworks" not in str(factors.get("tech_stack", "")):
+            tips.append("Mention Fireworks AI in your architecture or LLM usage for better sponsor alignment and score signal.")
+        if score < 7.0:
+            tips.append("Strengthen the business model and 'why it wins' sections — these correlate with higher outcomes in the dataset.")
+        if not tips:
+            tips.append("Focus on a killer, time-boxed demo and crisp 60-second pitch. Your current signals are already solid.")
+
+        return " • ".join(tips)

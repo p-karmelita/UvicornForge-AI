@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 
 class FireworksBriefPayload(BaseModel):
-    """Same schema as before for structured brief output."""
+    """Extended schema for high-business-value briefs (core + actionable sections)."""
     project_name: str = Field(description="Short product-like project name")
     one_sentence_pitch: str = Field(description="One concise sentence pitch")
     problem: str = Field(description="Problem statement")
@@ -20,6 +20,13 @@ class FireworksBriefPayload(BaseModel):
     demo_scenario: str = Field(description="Demo walkthrough for judges")
     business_model: str = Field(description="Business model sketch")
     why_it_can_win: str = Field(description="Why this can win a hackathon")
+
+    # New high-value business sections (optional for backward + fallback)
+    risks_and_mitigations: Optional[str] = Field(default=None, description="Key risks + mitigations")
+    go_to_market: Optional[str] = Field(default=None, description="Go-to-market / launch strategy")
+    key_metrics_to_track: Optional[str] = Field(default=None, description="Important metrics for first months")
+    recommended_next_steps: Optional[str] = Field(default=None, description="30/60/90 day plan")
+    hackathon_tips: Optional[str] = Field(default=None, description="Specific tips for winning the hackathon")
 
 
 BRIEF_JSON_SCHEMA = {
@@ -35,6 +42,11 @@ BRIEF_JSON_SCHEMA = {
         "demo_scenario": {"type": "string"},
         "business_model": {"type": "string"},
         "why_it_can_win": {"type": "string"},
+        "risks_and_mitigations": {"type": "string"},
+        "go_to_market": {"type": "string"},
+        "key_metrics_to_track": {"type": "string"},
+        "recommended_next_steps": {"type": "string"},
+        "hackathon_tips": {"type": "string"},
     },
     "required": [
         "project_name",

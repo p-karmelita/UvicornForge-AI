@@ -30,14 +30,15 @@ class PredictionResult:
 
 
 def _score_label(score: float) -> str:
-    # Adjusted for new dataset (Success Score 1-10 scale)
-    if score >= 8.0:
+    # Calibrated for realistic engineered target (mean ~6.3-7.5, good spread)
+    # Goal: useful differentiation for hackathon teams (high business value feedback)
+    if score >= 8.3:
         return "Very strong potential"
-    if score >= 6.5:
+    if score >= 7.2:
         return "Strong potential"
-    if score >= 5.0:
+    if score >= 5.8:
         return "Moderate potential"
-    if score >= 3.5:
+    if score >= 4.2:
         return "Early-stage risk"
     return "High risk"
 
