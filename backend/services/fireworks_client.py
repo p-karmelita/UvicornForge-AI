@@ -28,6 +28,15 @@ class FireworksBriefPayload(BaseModel):
     recommended_next_steps: Optional[str] = Field(default=None, description="30/60/90 day plan")
     hackathon_tips: Optional[str] = Field(default=None, description="Specific tips for winning the hackathon")
 
+    # Rich starter documentation for immediate project kickoff
+    recommended_tech_stack: Optional[str] = Field(default=None, description="Concrete tech recommendations with AMD/Fireworks")
+    architecture_overview: Optional[str] = Field(default=None, description="High level architecture")
+    project_structure: Optional[str] = Field(default=None, description="Suggested folder/file structure")
+    mvp_checklist: Optional[str] = Field(default=None, description="Prioritized tasks and MVP checklist")
+    starter_readme: Optional[str] = Field(default=None, description="Ready-to-use initial README.md content")
+    pitch_outline: Optional[str] = Field(default=None, description="Pitch deck outline")
+    demo_script: Optional[str] = Field(default=None, description="3-5 min demo script outline")
+
 
 BRIEF_JSON_SCHEMA = {
     "type": "object",
@@ -47,6 +56,13 @@ BRIEF_JSON_SCHEMA = {
         "key_metrics_to_track": {"type": "string"},
         "recommended_next_steps": {"type": "string"},
         "hackathon_tips": {"type": "string"},
+        "recommended_tech_stack": {"type": "string"},
+        "architecture_overview": {"type": "string"},
+        "project_structure": {"type": "string"},
+        "mvp_checklist": {"type": "string"},
+        "starter_readme": {"type": "string"},
+        "pitch_outline": {"type": "string"},
+        "demo_script": {"type": "string"},
     },
     "required": [
         "project_name",

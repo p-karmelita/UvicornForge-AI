@@ -45,6 +45,15 @@ class GenerateBriefResponse(BaseModel):
     hackathon_tips: Optional[str] = None
     improvement_suggestions: Optional[str] = None   # High-value: actionable advice from the model + factors
 
+    # Rich project kickoff / starter documentation
+    recommended_tech_stack: Optional[str] = None
+    architecture_overview: Optional[str] = None
+    project_structure: Optional[str] = None
+    mvp_checklist: Optional[str] = None
+    starter_readme: Optional[str] = None
+    pitch_outline: Optional[str] = None
+    demo_script: Optional[str] = None
+
     success_score: Optional[float] = None
     success_score_normalized: Optional[float] = None
     success_label: Optional[str] = None

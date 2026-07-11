@@ -119,7 +119,7 @@ Available technologies:
 Reference startups from global_startup_success_dataset.csv:
 {references}
 
-Return exactly these 15 sections (use clear, professional, investor/hackathon-judge ready language):
+Return a rich "Project Kickoff Package" with the following sections. Make it concrete and immediately useful as the first step to building the project during a hackathon. Use clear, professional language and include practical details.
 
 Project name:
 One-sentence pitch:
@@ -136,4 +136,13 @@ Go-to-market strategy:
 Key metrics to track in first 3 months:
 Recommended next steps (30/60/90 days):
 Hackathon winning tips (demo, pitch, sponsor alignment):
+
+## Additional starter documentation (very important for kickoff value):
+Recommended tech stack (leverage AMD GPUs and/or Fireworks AI where it makes sense, explain briefly why):
+High-level architecture (main components, data flow, key tech choices):
+Suggested project folder structure (simple tree for a hackathon MVP):
+MVP checklist and initial tasks (prioritized list of concrete things to do in the first hours):
+Starter README.md content (ready-to-paste initial README with sections like Overview, Quickstart, Tech, Roadmap):
+Pitch deck outline (5-7 slide structure with what to put on each slide):
+Demo script outline (step-by-step 3-5 minute live demo script):
 """

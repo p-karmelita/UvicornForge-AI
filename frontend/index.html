@@ -307,6 +307,12 @@
         <section class="panel">
             <h2>Generated Startup Brief</h2>
             <button id="copy_btn" type="button" class="secondary-btn">📋 Copy as Markdown</button>
+            <div class="download-buttons" style="margin: 0.5rem 0; display: flex; flex-wrap: wrap; gap: 0.4rem;">
+                <button id="dl_full_kit" type="button" class="secondary-btn">⬇️ Full Starter Kit (.md)</button>
+                <button id="dl_readme" type="button" class="secondary-btn">⬇️ README.md</button>
+                <button id="dl_mvp" type="button" class="secondary-btn">⬇️ MVP Checklist</button>
+                <button id="dl_pitch" type="button" class="secondary-btn">⬇️ Pitch + Demo</button>
+            </div>
             <div id="score_area" style="display:none;"></div>
             <div id="brief_content" class="brief-content" style="display:none;"></div>
             <pre id="output" style="display:none;">(Waiting for input...)</pre>
@@ -482,6 +488,48 @@
                 brief.why_it_can_win,
             );
 
+            // Rich starter documentation
+            if (brief.risks_and_mitigations) {
+                lines.push("", `## Risks and mitigations`, "", brief.risks_and_mitigations);
+            }
+            if (brief.go_to_market) {
+                lines.push("", `## Go-to-market strategy`, "", brief.go_to_market);
+            }
+            if (brief.key_metrics_to_track) {
+                lines.push("", `## Key metrics to track in first 3 months`, "", brief.key_metrics_to_track);
+            }
+            if (brief.recommended_next_steps) {
+                lines.push("", `## Recommended next steps (30/60/90 days)`, "", brief.recommended_next_steps);
+            }
+            if (brief.hackathon_tips) {
+                lines.push("", `## Hackathon winning tips`, "", brief.hackathon_tips);
+            }
+            if (brief.improvement_suggestions) {
+                lines.push("", `## Improvement suggestions (from success model)`, "", brief.improvement_suggestions);
+            }
+
+            if (brief.recommended_tech_stack) {
+                lines.push("", `## Recommended tech stack`, "", brief.recommended_tech_stack);
+            }
+            if (brief.architecture_overview) {
+                lines.push("", `## High-level architecture`, "", brief.architecture_overview);
+            }
+            if (brief.project_structure) {
+                lines.push("", `## Suggested project structure`, "", "```\n" + brief.project_structure + "\n```");
+            }
+            if (brief.mvp_checklist) {
+                lines.push("", `## MVP checklist & initial tasks`, "", brief.mvp_checklist);
+            }
+            if (brief.starter_readme) {
+                lines.push("", `## Starter README.md content`, "", brief.starter_readme);
+            }
+            if (brief.pitch_outline) {
+                lines.push("", `## Pitch deck outline`, "", brief.pitch_outline);
+            }
+            if (brief.demo_script) {
+                lines.push("", `## Demo script outline`, "", brief.demo_script);
+            }
+
             // Add Unicorn Track / AMD blurb
             lines.push("", "---", "", "Built for the Unicorn Track: demonstrate creativity using AMD GPUs or Fireworks AI credits. Showcase product potential, not benchmarks.");
 
@@ -531,6 +579,33 @@
                 }
             });
 
+            // Rich starter kit sections
+            const starterSections = [
+                { key: "risks_and_mitigations", title: "Risks & Mitigations" },
+                { key: "recommended_tech_stack", title: "Recommended Tech Stack (AMD + Fireworks)" },
+                { key: "architecture_overview", title: "High-level Architecture" },
+                { key: "project_structure", title: "Project Structure" },
+                { key: "mvp_checklist", title: "MVP Checklist & Initial Tasks" },
+                { key: "pitch_outline", title: "Pitch Deck Outline" },
+                { key: "demo_script", title: "Demo Script" },
+            ];
+
+            let hasStarter = false;
+            starterSections.forEach(sec => {
+                const content = brief[sec.key] || "";
+                if (content) {
+                    if (!hasStarter) {
+                        html += `<h3 style="margin-top:1rem; color:#fda4af;">🚀 Project Starter Kit</h3>`;
+                        hasStarter = true;
+                    }
+                    html += `<h3>${sec.title}</h3><p>${content.replace(/\n/g, "<br>")}</p>`;
+                }
+            });
+
+            if (brief.improvement_suggestions) {
+                html += `<h3>Improvement Suggestions (from model)</h3><p>${brief.improvement_suggestions.replace(/\n/g, "<br>")}</p>`;
+            }
+
             // Add AMD / sponsor note
             html += `<div style="margin-top:0.8rem; font-size:0.75rem; color:#64748b; border-top:1px solid #1e2937; padding-top:0.5rem;">
                 Built for the Unicorn Track — powered by AMD + Fireworks AI.
@@ -566,6 +641,7 @@
                 }
 
                 const brief = await response.json();
+                lastBrief = brief;  // for downloads and rich features
 
                 // Keep markdown version for "Copy" (hidden pre)
                 const md = toMarkdown(brief);
@@ -606,6 +682,7 @@
                 bc.style.display = "none";
                 outputEl.style.display = "block";
                 outputEl.textContent = "(Error — see status above)";
+                lastBrief = null;
             } finally {
                 generateBtn.disabled = false;
             }
@@ -663,6 +740,74 @@
             return realGenerate.apply(this, arguments);
         };
         generateBtn.addEventListener("click", generateBrief);
+
+        // --- Download helpers for rich starter documentation ---
+        let lastBrief = null;
+
+        function downloadText(filename, content) {
+            const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function buildFullKitMarkdown(brief) {
+            return toMarkdown(brief);
+        }
+
+        function buildReadme(brief) {
+            return brief.starter_readme || `# ${brief.project_name}\n\n${brief.one_sentence_pitch}\n\nSee the full generated brief for details.`;
+        }
+
+        function buildMvpChecklist(brief) {
+            let md = `# MVP Checklist & Tasks for ${brief.project_name}\n\n`;
+            if (brief.mvp_checklist) md += brief.mvp_checklist + "\n\n";
+            md += `## Core MVP Scope\n${brief.mvp_scope || ""}\n`;
+            return md;
+        }
+
+        function buildPitchDemo(brief) {
+            let md = `# Pitch & Demo Materials - ${brief.project_name}\n\n`;
+            if (brief.pitch_outline) md += `## Pitch Deck Outline\n\n${brief.pitch_outline}\n\n`;
+            if (brief.demo_script) md += `## Demo Script\n\n${brief.demo_script}\n\n`;
+            if (brief.hackathon_tips) md += `## Hackathon Tips\n\n${brief.hackathon_tips}\n`;
+            return md;
+        }
+
+        const dlFull = document.getElementById("dl_full_kit");
+        const dlReadme = document.getElementById("dl_readme");
+        const dlMvp = document.getElementById("dl_mvp");
+        const dlPitch = document.getElementById("dl_pitch");
+
+        function ensureBrief() {
+            if (!lastBrief) {
+                alert("Generate a brief first!");
+                return null;
+            }
+            return lastBrief;
+        }
+
+        if (dlFull) dlFull.addEventListener("click", () => {
+            const b = ensureBrief(); if (!b) return;
+            downloadText(`${(b.project_name || "project").toLowerCase().replace(/\s+/g, "-")}-starter-kit.md`, buildFullKitMarkdown(b));
+        });
+        if (dlReadme) dlReadme.addEventListener("click", () => {
+            const b = ensureBrief(); if (!b) return;
+            downloadText("README.md", buildReadme(b));
+        });
+        if (dlMvp) dlMvp.addEventListener("click", () => {
+            const b = ensureBrief(); if (!b) return;
+            downloadText("MVP-Checklist.md", buildMvpChecklist(b));
+        });
+        if (dlPitch) dlPitch.addEventListener("click", () => {
+            const b = ensureBrief(); if (!b) return;
+            downloadText("Pitch-Demo.md", buildPitchDemo(b));
+        });
 
         restoreForm();
     </script>
