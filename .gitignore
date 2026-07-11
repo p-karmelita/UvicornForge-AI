@@ -7,9 +7,8 @@ __pycache__/
 backend/global-startup-success-dataset/
 *.csv
 !backend/global_startup_success_dataset.csv
-
-# Trained models (large binaries)
 .env
+__pycache__/app.cpython-312.pyc
 
 # Jupyter Notebooks
 .ipynb_checkpoints/
