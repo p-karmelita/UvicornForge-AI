@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
 from ml.dataset import get_dataset_info
+from ml.evaluation import evaluate_saved_model
 from services.brief_service import (
     BriefService,
     GenerateBriefRequest,
@@ -91,3 +92,13 @@ async def health():
 @app.get("/model-info")
 async def model_info():
     return BRIEF_SERVICE.get_model_info()
+
+
+@app.get("/model-metrics")
+async def model_metrics():
+    if not BRIEF_SERVICE.get_model_info()["success_model_ready"]:
+        raise HTTPException(status_code=503, detail="Success model is not loaded")
+    try:
+        return evaluate_saved_model()
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

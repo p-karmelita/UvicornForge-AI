@@ -95,7 +95,11 @@ class BriefService:
             "xai_configured": bool(self.xai_api_key),
             "xai_model": self.xai_model,
             "training_samples": training_meta.get("training_samples"),
+            "validation_samples": training_meta.get("validation_samples"),
             "final_val_mse": training_meta.get("final_val_mse"),
+            "val_mae": training_meta.get("val_mae"),
+            "val_rmse": training_meta.get("val_rmse"),
+            "val_r2": training_meta.get("val_r2"),
             "scaler_saved": self.predictor.scaler is not None,
         }
 

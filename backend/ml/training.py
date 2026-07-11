@@ -12,6 +12,7 @@ from torch import nn
 from torch.utils.data import DataLoader, Dataset
 
 from .dataset import CAT_COLUMNS, DEFAULT_DATASET_PATH, NUM_COLUMNS, TARGET_COLUMN
+from .evaluation import evaluate_success_model
 from .model import SuccessScoreMLP
 
 
@@ -100,6 +101,8 @@ def train_success_model(
             f"| val MSE: {epoch_stats['val_mse']:.4f}"
         )
 
+    _, _, val_metrics = evaluate_success_model(model, val_loader, device)
+
     out_dir = output_dir or Path(__file__).resolve().parent.parent / "trained_models" / "startup_success_mlp"
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -111,8 +114,13 @@ def train_success_model(
         "target_column": TARGET_COLUMN,
         "scaler": scaler,
         "training_samples": int(len(features)),
+        "validation_samples": int(len(y_val)),
         "device": str(device),
         "final_val_mse": history[-1]["val_mse"],
+        "val_mae": val_metrics["mae"],
+        "val_rmse": val_metrics["rmse"],
+        "val_r2": val_metrics["r2"],
+        "history": history,
     }
     with open(out_dir / "metadata.pkl", "wb") as handle:
         pickle.dump(metadata, handle)
@@ -122,6 +130,7 @@ def train_success_model(
         "feature_columns": len(feature_columns),
         "training_samples": len(features),
         "final_val_mse": history[-1]["val_mse"],
+        "val_metrics": val_metrics,
         "device": str(device),
         "history": history,
     }

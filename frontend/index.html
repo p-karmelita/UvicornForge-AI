@@ -143,9 +143,11 @@
                 const response = await fetch(`${apiBaseUrl}/model-info`);
                 if (!response.ok) throw new Error("model-info unavailable");
                 const info = await response.json();
+                const metrics = info.val_r2 != null ? `R² ${info.val_r2}` : "metrics pending";
                 systemStatusEl.replaceChildren(
                     badge(`Dataset: ${info.dataset_rows || 0} rows`, info.dataset_loaded),
                     badge(`ML model: ${info.success_model_ready ? "ready" : "offline"}`, info.success_model_ready),
+                    badge(`Validation: ${metrics}`, info.val_r2 != null),
                     badge(`GPU: ${info.cuda_available ? (info.device_name || "available") : "cpu"}`, info.cuda_available),
                     badge(`Brief source: ${info.xai_configured ? "Grok + dataset fallback" : "dataset"}`, true),
                 );
