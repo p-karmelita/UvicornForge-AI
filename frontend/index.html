@@ -345,14 +345,40 @@
 
         async function loadSystemStatus() {
             try {
-                const response = await fetch(`${apiBaseUrl}/model-info`);
-                if (!response.ok) throw new Error("model-info unavailable");
-                const info = await response.json();
-                const metrics = info.val_r2 != null ? `R² ${Number(info.val_r2).toFixed(2)}` : "metrics pending";
+                // Fetch both in parallel so the (potentially slower) fresh metrics
+                // evaluation doesn't block the rest of the status.
+                const [infoRes, metricsRes] = await Promise.allSettled([
+                    fetch(`${apiBaseUrl}/model-info`),
+                    fetch(`${apiBaseUrl}/model-metrics`),
+                ]);
+
+                let info = {};
+                if (infoRes.status === "fulfilled" && infoRes.value.ok) {
+                    info = await infoRes.value.json();
+                } else {
+                    throw new Error("model-info unavailable");
+                }
+
+                // Use fresh live-evaluated metrics when available (from evaluate_saved_model).
+                // This ensures Validation R² shows the real current model performance
+                // instead of the (possibly stale) value baked into metadata.pkl.
+                let valR2 = info.val_r2;
+                if (metricsRes.status === "fulfilled" && metricsRes.value.ok) {
+                    try {
+                        const fresh = await metricsRes.value.json();
+                        if (fresh && fresh.metrics && typeof fresh.metrics.r2 === "number") {
+                            valR2 = fresh.metrics.r2;
+                        }
+                    } catch (parseErr) {
+                        console.debug("Could not parse /model-metrics response", parseErr);
+                    }
+                }
+
+                const metricsLabel = valR2 != null ? `R² ${Number(valR2).toFixed(2)}` : "metrics pending";
                 systemStatusEl.replaceChildren(
                     badge(`Dataset: ${info.dataset_rows || 0} rows`, info.dataset_loaded),
                     badge(`ML model: ${info.success_model_ready ? "ready" : "offline"}`, info.success_model_ready),
-                    badge(`Validation: ${metrics}`, info.val_r2 != null),
+                    badge(`Validation: ${metricsLabel}`, valR2 != null),
                     badge(`GPU: ${info.cuda_available ? (info.device_name || "AMD/ROCm") : "CPU"}`, info.cuda_available),
                     badge(`Fireworks + AMD`, true, "amd"),
                     badge(`Brief: ${info.fireworks_configured ? "Fireworks AI" : "dataset"}`, true),
@@ -366,22 +392,14 @@
         function getFormData() {
             let tech = document.getElementById("available_technologies").value.trim() || "";
 
-            // Enhance with extra numeric signals (team + funding) so the AMD model can use them
-            const team = document.getElementById("team_size").value.trim();
-            const funding = document.getElementById("total_funding").value.trim();
-            const extras = [];
-            if (team) extras.push(`Team of ${team}`);
-            if (funding) extras.push(`Funding $${funding}k`);
-            if (extras.length) {
-                tech = tech ? `${tech}; ${extras.join(", ")}` : extras.join(", ");
-            }
-
             return {
                 project_idea: document.getElementById("project_idea").value.trim(),
                 target_users: document.getElementById("target_users").value.trim() || null,
                 industry: document.getElementById("industry").value.trim() || null,
                 available_time: document.getElementById("available_time").value.trim() || null,
                 available_technologies: tech || null,
+                team_size: document.getElementById("team_size").value ? parseFloat(document.getElementById("team_size").value) : null,
+                total_funding: document.getElementById("total_funding").value ? parseFloat(document.getElementById("total_funding").value) : null,
             };
         }
 
