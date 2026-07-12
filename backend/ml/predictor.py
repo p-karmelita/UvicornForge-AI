@@ -30,15 +30,15 @@ class PredictionResult:
 
 
 def _score_label(score: float) -> str:
-    # Calibrated for realistic engineered target (mean ~6.3-7.5, good spread)
-    # Goal: useful differentiation for hackathon teams (high business value feedback)
-    if score >= 8.3:
+    # Calibrated for current engineered target (mean ~7.3, max ~8, good spread)
+    # Goal: useful differentiation for hackathon teams
+    if score >= 7.8:
         return "Very strong potential"
-    if score >= 7.2:
+    if score >= 7.0:
         return "Strong potential"
-    if score >= 5.8:
+    if score >= 5.5:
         return "Moderate potential"
-    if score >= 4.2:
+    if score >= 4.0:
         return "Early-stage risk"
     return "High risk"
 
@@ -104,6 +104,8 @@ class SuccessPredictor:
         available_technologies: Optional[str] = None,
         compute_platform: Optional[str] = None,
         amd_platform: Optional[str] = None,
+        team_size: Optional[float] = None,
+        total_funding: Optional[float] = None,  # in k$
     ) -> Optional[PredictionResult]:
         mapped = map_request_to_features(
             project_idea=project_idea,
@@ -113,6 +115,8 @@ class SuccessPredictor:
             available_technologies=available_technologies,
             compute_platform=compute_platform,
             amd_platform=amd_platform,
+            team_size=team_size,
+            total_funding=total_funding,
         )
         return self.predict_from_mapped(mapped)
 

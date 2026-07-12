@@ -146,6 +146,39 @@ def _infer_country(target_users: Optional[str], industry: str) -> str:
     return "USA"
 
 
+def _estimate_ambition_factor(project_idea: str) -> float:
+    """Make numeric features vary based on how ambitious the idea sounds.
+    This is what allows different project ideas to get meaningfully different success scores.
+    """
+    text = _normalize(project_idea)
+    factor = 1.0
+
+    ambitious_keywords = [
+        "global", "worldwide", "scale", "millions", "billion", "enterprise",
+        "revolutionary", "advanced", "platform", "ai", "large", "massive",
+        "disrupt", "transform", "industry", "next-gen", "cutting-edge"
+    ]
+    modest_keywords = [
+        "simple", "basic", "small", "local", "personal", "todo", "for me",
+        "prototype", "weekend", "quick", "minimal", "hobby"
+    ]
+
+    for kw in ambitious_keywords:
+        if kw in text:
+            factor += 0.25
+    for kw in modest_keywords:
+        if kw in text:
+            factor -= 0.35
+
+    # Longer more detailed ideas get a small boost
+    if len(text) > 120:
+        factor += 0.15
+    if len(text) < 40:
+        factor -= 0.2
+
+    return max(0.4, min(2.8, factor))
+
+
 def map_request_to_features(
     project_idea: str,
     target_users: Optional[str] = None,
@@ -154,10 +187,14 @@ def map_request_to_features(
     available_technologies: Optional[str] = None,
     compute_platform: Optional[str] = None,
     amd_platform: Optional[str] = None,
+    team_size: Optional[float] = None,
+    total_funding: Optional[float] = None,  # in thousands USD, as in form
 ) -> MappedFeatures:
     """Translate free-form user input into dataset-aligned model features.
     Now supports explicit AMD/Fireworks choices to show their positive impact
     on predicted success score.
+    Direct team_size and total_funding from form are used preferentially
+    for full 1-10 score range.
     """
     matched_industry = _match_industry(industry, project_idea)
     matched_tech = _match_tech_stack(available_technologies)
@@ -165,19 +202,51 @@ def map_request_to_features(
     matched_country = _infer_country(target_users, matched_industry)
 
     medians = get_industry_medians(matched_industry)
-    multiplier = FUNDING_STAGE_MULTIPLIERS.get(matched_stage, 0.2)
+    stage_multiplier = FUNDING_STAGE_MULTIPLIERS.get(matched_stage, 0.2)
+    ambition = _estimate_ambition_factor(project_idea)
+    effective_mult = stage_multiplier * ambition
 
     # New schema numeric columns (AMD-aware)
+    # Use direct user inputs for team/funding when provided (allows full 1-10 range).
+    # Otherwise fall back to medians scaled by stage+ambition.
+    if team_size is not None and team_size > 0:
+        ts = float(team_size)
+    else:
+        ts = max(2.0, medians.get("Team Size", 5.0) * effective_mult)
+
+    if total_funding is not None and total_funding > 0:
+        tf = float(total_funding) * 1000.0  # assume kUSD as in form
+    else:
+        tf = max(5.0, medians.get("Total Funding ($)", 150.0) * effective_mult)
+
     numeric = {
         "Founded Year": float(datetime.now().year),
-        "Total Funding ($)": max(5.0, medians.get("Total Funding ($)", 150.0) * multiplier),
-        "Team Size": max(2.0, medians.get("Team Size", 5.0) * multiplier),
-        "Monthly Recurring Revenue ($)": max(0.0, medians.get("Monthly Recurring Revenue ($)", 50.0) * multiplier),
-        "Valuation ($)": max(500.0, medians.get("Valuation ($)", 2000.0) * multiplier),
-        "Customer Base": max(5.0, medians.get("Customer Base", 50.0) * multiplier),
-        "Fireworks AI Credits Used ($, cumulative)": max(0.0, medians.get("Fireworks AI Credits Used ($, cumulative)", 2.0) * multiplier),
-        "Social Media Followers": max(50.0, medians.get("Social Media Followers", 500.0) * multiplier),
+        "Total Funding ($)": tf,
+        "Team Size": ts,
+        "Monthly Recurring Revenue ($)": max(0.0, medians.get("Monthly Recurring Revenue ($)", 50.0) * effective_mult),
+        "Valuation ($)": max(500.0, medians.get("Valuation ($)", 2000.0) * effective_mult),
+        "Customer Base": max(5.0, medians.get("Customer Base", 50.0) * effective_mult),
+        "Fireworks AI Credits Used ($, cumulative)": max(0.0, medians.get("Fireworks AI Credits Used ($, cumulative)", 2.0) * effective_mult),
+        "Social Media Followers": max(50.0, medians.get("Social Media Followers", 500.0) * effective_mult),
     }
+
+    if ambition > 1.2:
+        boost = 0.8 + (ambition - 1) * 0.6
+        for k in ["Monthly Recurring Revenue ($)", "Valuation ($)", "Customer Base", "Social Media Followers"]:
+            numeric[k] = numeric[k] * boost
+
+    # Compute an overall "level" from provided team, funding, ambition and stage.
+    # This ensures that high team/funding/ambitious ideas get high values across the board,
+    # allowing the predicted score to span the full 1-10 range even for short available time.
+    team_level = (ts / max(1, medians.get("Team Size", 5))) if ts else 0
+    fund_level = (tf / 1000 / max(1, medians.get("Total Funding ($)", 150))) if tf else 0
+    overall_level = max(stage_multiplier, ambition, team_level, fund_level, 0.1)
+    overall_level = min(overall_level, 4.0)  # cap to avoid crazy values
+
+    for k in ["Monthly Recurring Revenue ($)", "Valuation ($)", "Customer Base", "Social Media Followers", "Fireworks AI Credits Used ($, cumulative)"]:
+        med = medians.get(k, 50)
+        # use at least the level-scaled value
+        numeric[k] = max(numeric[k], med * overall_level)
 
     # Honest defaults — only strong AMD if user or caller explicitly provides it.
     # Neutral default keeps scores believable and the product high-value.
@@ -204,7 +273,10 @@ def map_request_to_features(
         "funding_stage": matched_stage,
         "compute_platform": comp,
         "amd_platform": amd,
-        "stage_multiplier": f"{multiplier:.2f}",
+        "stage_multiplier": f"{stage_multiplier:.2f}",
+        "ambition_factor": f"{ambition:.2f}",
+        "team_size": ts,
+        "total_funding_k": tf / 1000 if tf else None,
     }
 
     return MappedFeatures(
