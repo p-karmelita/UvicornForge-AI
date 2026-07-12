@@ -1,4 +1,4 @@
-# UnicornForge AI
+# UvicornForge AI
 
 **AI-powered startup co-founder that turns rough hackathon ideas into complete, pitch-ready startup briefs with realistic success predictions — in under a minute.**
 
