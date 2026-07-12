@@ -24,6 +24,7 @@ def generate_dataset_brief(
         industry=industry,
         available_time=available_time,
         available_technologies=available_technologies,
+        # team/funding not passed here (dataset fallback uses medians)
     )
 
     idea = project_idea.strip()

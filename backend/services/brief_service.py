@@ -18,6 +18,8 @@ class GenerateBriefRequest(BaseModel):
     industry: Optional[str] = None
     available_time: Optional[str] = None
     available_technologies: Optional[str] = None
+    team_size: Optional[float] = None
+    total_funding: Optional[float] = None  # in k$
 
 
 class SimilarStartup(BaseModel):
@@ -135,6 +137,8 @@ class BriefService:
             available_technologies=payload.available_technologies,
             compute_platform=comp,
             amd_platform=amd,
+            team_size=payload.team_size,
+            total_funding=payload.total_funding,
         )
         prompt = self._build_prompt(payload)
 
@@ -156,6 +160,8 @@ class BriefService:
             industry=payload.industry,
             available_time=payload.available_time,
             available_technologies=payload.available_technologies,
+            team_size=getattr(payload, "team_size", None),
+            total_funding=getattr(payload, "total_funding", None),
         )
         # Use short, non-leaking pattern summaries for the LLM prompt
         # (raw row_to_description contains unrealistic scale and synthetic names)
