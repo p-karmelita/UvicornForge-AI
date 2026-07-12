@@ -43,10 +43,50 @@ FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
 _brief_service: Optional[BriefService] = None
 _init_error: Optional[str] = None
 
+_MODEL_DIR = os.path.join(os.path.dirname(__file__), "trained_models", "startup_success_mlp")
+
+
+def _auto_retrain_if_needed() -> None:
+    """If model files are absent but the dataset is present, retrain automatically."""
+    metadata_missing = not os.path.exists(os.path.join(_MODEL_DIR, "metadata.pkl"))
+    weights_missing = not os.path.exists(os.path.join(_MODEL_DIR, "model.pt"))
+    if not (metadata_missing or weights_missing):
+        return
+
+    dataset_info = get_dataset_info()
+    if not dataset_info["loaded"]:
+        print(
+            "[unicornforge] WARNING: Model files are missing and the dataset is also "
+            "unavailable — cannot auto-retrain. Place the dataset CSV in backend/ and "
+            "run `cd backend && python train_model.py` to train the model."
+        )
+        return
+
+    print(
+        "[unicornforge] Model files missing — auto-retraining now. "
+        "This may take a minute..."
+    )
+    try:
+        from ml.training import train_success_model
+
+        result = train_success_model()
+        print(
+            f"[unicornforge] Auto-retrain complete. "
+            f"Model saved to: {result['output_dir']}. "
+            f"Final val MSE: {result['final_val_mse']:.4f}"
+        )
+        # BriefService will pick up the new files when it initializes next.
+    except Exception as exc:
+        print(
+            f"[unicornforge] ERROR: Auto-retrain failed: {exc}. "
+            "Run `cd backend && python train_model.py` manually to recover."
+        )
+
 
 def _init_service() -> None:
     global _brief_service, _init_error
     try:
+        _auto_retrain_if_needed()
         service = BriefService()
         _brief_service = service
         _log_startup_status(service)
@@ -67,7 +107,16 @@ def _log_startup_status(service: BriefService) -> None:
     print("[unicornforge] cuda available:", info["cuda_available"])
     if info["device_name"]:
         print("[unicornforge] device:", info["device_name"])
-    print("[unicornforge] success model ready:", info["success_model_ready"])
+
+    if info["success_model_ready"]:
+        print("[unicornforge] success model ready: True")
+    else:
+        print(
+            "[unicornforge] WARNING: success model is NOT ready. "
+            "Success scoring will be skipped. "
+            "To fix: run `cd backend && python train_model.py` to retrain the model."
+        )
+
     print("[unicornforge] fireworks configured:", info.get("fireworks_configured"))
     print(
         "[unicornforge] dataset loaded:",
@@ -87,7 +136,6 @@ def _get_service() -> BriefService:
         if _init_error:
             raise HTTPException(status_code=500, detail=f"Service failed to initialize: {_init_error}")
         raise HTTPException(status_code=503, detail="Service is initializing, please retry in a moment.")
-    return _brief_service
 
 
 @app.get("/")

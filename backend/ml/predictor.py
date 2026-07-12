@@ -60,6 +60,12 @@ class SuccessPredictor:
         metadata_path = self.models_dir / "metadata.pkl"
         weights_path = self.models_dir / "model.pt"
         if not metadata_path.exists() or not weights_path.exists():
+            missing = [p.name for p in (metadata_path, weights_path) if not p.exists()]
+            print(
+                f"[unicornforge] WARNING: Model file(s) missing: {missing}. "
+                f"Expected directory: {self.models_dir}. "
+                "Run `cd backend && python train_model.py` to retrain."
+            )
             return
 
         try:
