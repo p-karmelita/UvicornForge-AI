@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import os
+import threading
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -35,16 +37,30 @@ app.add_middleware(
 )
 
 FRONTEND_DIR = os.path.join(os.path.dirname(__file__), "..", "frontend")
-BRIEF_SERVICE = BriefService()
+
+# Initialized in a background thread so the server can accept requests
+# (and pass health checks) immediately while the model loads.
+_brief_service: Optional[BriefService] = None
+_init_error: Optional[str] = None
 
 
-def _log_startup_status() -> None:
-    info = BRIEF_SERVICE.get_model_info()
+def _init_service() -> None:
+    global _brief_service, _init_error
+    try:
+        service = BriefService()
+        _brief_service = service
+        _log_startup_status(service)
+    except Exception as exc:
+        _init_error = str(exc)
+        print(f"[unicornforge] Failed to initialize BriefService: {exc}")
+
+
+def _log_startup_status(service: BriefService) -> None:
+    info = service.get_model_info()
     print("[unicornforge] torch available:", info["torch_available"])
     if info["torch_available"]:
         try:
             import torch as _torch
-
             print("[unicornforge] torch.__version__:", _torch.__version__)
         except Exception:
             pass
@@ -61,7 +77,17 @@ def _log_startup_status() -> None:
     )
 
 
-_log_startup_status()
+# Start loading in the background — does not block uvicorn worker startup.
+threading.Thread(target=_init_service, daemon=True).start()
+
+
+def _get_service() -> BriefService:
+    """Return the initialized service or raise 503 if still loading."""
+    if _brief_service is None:
+        if _init_error:
+            raise HTTPException(status_code=500, detail=f"Service failed to initialize: {_init_error}")
+        raise HTTPException(status_code=503, detail="Service is initializing, please retry in a moment.")
+    return _brief_service
 
 
 @app.get("/")
@@ -80,23 +106,28 @@ async def generate_brief(payload: GenerateBriefRequest) -> GenerateBriefResponse
             detail="global_startup_success_dataset.csv not found in backend/",
         )
 
-    return BRIEF_SERVICE.generate(payload)
+    return _get_service().generate(payload)
 
 
 @app.get("/health")
 async def health():
-    info = BRIEF_SERVICE.get_model_info()
+    if _brief_service is None:
+        return {"ok": True, "status": "initializing"}
+    info = _brief_service.get_model_info()
     return {"ok": True, **info}
 
 
 @app.get("/model-info")
 async def model_info():
-    return BRIEF_SERVICE.get_model_info()
+    if _brief_service is None:
+        return {"status": "initializing", "success_model_ready": False}
+    return _brief_service.get_model_info()
 
 
 @app.get("/model-metrics")
 async def model_metrics():
-    if not BRIEF_SERVICE.get_model_info()["success_model_ready"]:
+    service = _get_service()
+    if not service.get_model_info()["success_model_ready"]:
         raise HTTPException(status_code=503, detail="Success model is not loaded")
     try:
         return evaluate_saved_model()
@@ -106,7 +137,4 @@ async def model_metrics():
 
 if __name__ == "__main__":
     import uvicorn
-
-    # Allows running directly via `python app.py` from the backend directory (handy in PyCharm etc).
-    # Recommended: use run_local.sh or `python -m uvicorn app:app --reload`
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
