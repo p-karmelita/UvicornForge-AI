@@ -36,3 +36,7 @@ externalPort = 80
 [deployment]
 deploymentTarget = "autoscale"
 run = ["bash", "-c", "cd backend && gunicorn -w 2 -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:5000 app:app"]
+
+[postMerge]
+path = "scripts/post-merge.sh"
+timeoutMs = 180000
