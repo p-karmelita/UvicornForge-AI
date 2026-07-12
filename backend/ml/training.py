@@ -68,9 +68,12 @@ def train_success_model(
     train_loader = DataLoader(StartupsDataset(x_train, y_train), batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(StartupsDataset(x_val, y_val), batch_size=256)
 
-    model = SuccessScoreMLP(x_train.shape[1], dropout=0.3).to(device)
+    model = SuccessScoreMLP(x_train.shape[1], dropout=0.05).to(device)
     criterion = nn.MSELoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=1e-5)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+        optimizer, mode="min", factor=0.5, patience=4
+    )
 
     history = []
     for epoch in range(1, epochs + 1):
@@ -90,6 +93,8 @@ def train_success_model(
             train_count += batch_size_actual
 
         val_loss = _evaluate(model, val_loader, criterion, device)
+        scheduler.step(val_loss)
+
         epoch_stats = {
             "epoch": epoch,
             "train_mse": train_loss / train_count,
