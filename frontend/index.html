@@ -18,11 +18,15 @@
         }
         body {
             margin: 0;
-            padding: 1.25rem;
+            padding: 1.5rem;
             font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            background: var(--bg);
+            background: #05070f;
+            background-image: 
+                radial-gradient(circle at 25% 20%, rgba(225, 29, 72, 0.06) 0%, transparent 50%),
+                radial-gradient(circle at 75% 80%, rgba(225, 29, 72, 0.04) 0%, transparent 50%);
             color: var(--text);
             line-height: 1.5;
+            min-height: 100vh;
         }
         h1 {
             margin: 0 0 0.25rem;
@@ -42,62 +46,81 @@
         .container {
             display: flex;
             flex-wrap: wrap;
-            gap: 1.25rem;
+            gap: 1.5rem;
             max-width: 1200px;
             margin: 0 auto;
         }
         .panel {
             flex: 1 1 380px;
-            padding: 1.25rem;
-            border-radius: 12px;
-            background: var(--panel);
-            border: 1px solid var(--panel-border);
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+            padding: 1.5rem;
+            border-radius: 18px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.15), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .panel:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
         }
         .panel h2 {
-            margin: 0 0 1rem;
-            font-size: 1.1rem;
+            margin: 0 0 1.25rem;
+            font-size: 1.05rem;
             color: #e2e8f0;
-            border-bottom: 1px solid var(--panel-border);
-            padding-bottom: 0.5rem;
+            padding-bottom: 0.65rem;
+            border-bottom: 1px solid #1e2937;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+            font-weight: 600;
+            font-size: 0.85rem;
         }
         label {
             display: block;
-            margin-top: 0.75rem;
-            margin-bottom: 0.25rem;
-            font-size: 0.875rem;
-            color: #cbd5e1;
+            margin-top: 0.85rem;
+            margin-bottom: 0.3rem;
+            font-size: 0.8rem;
+            font-weight: 600;
+            color: #94a3b8;
+            letter-spacing: 0.4px;
         }
         textarea, input, select {
             width: 100%;
-            padding: 0.55rem 0.7rem;
-            border-radius: 8px;
+            padding: 0.65rem 0.85rem;
+            border-radius: 10px;
             border: 1px solid #334155;
-            background: #020617;
+            background: #0b1222;
             color: var(--text);
             font-size: 0.95rem;
-            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            transition: all 0.15s ease;
         }
         textarea:focus, input:focus, select:focus {
             outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.15);
+            border-color: #e11d48;
+            box-shadow: 0 0 0 3px rgba(225, 29, 72, 0.12);
+            background: #0f172a;
         }
-        textarea { min-height: 92px; resize: vertical; }
+        textarea { min-height: 96px; resize: vertical; }
         button {
-            margin-top: 1rem;
-            padding: 0.65rem 1.35rem;
-            border-radius: 8px;
+            margin-top: 1.25rem;
+            padding: 0.85rem 1.6rem;
+            border-radius: 12px;
             border: none;
             cursor: pointer;
-            background: var(--accent);
+            background: linear-gradient(135deg, #e11d48, #be123c);
             color: white;
-            font-weight: 600;
-            font-size: 0.95rem;
-            transition: background 0.15s ease, transform 0.1s ease;
+            font-weight: 700;
+            font-size: 1rem;
+            letter-spacing: 0.3px;
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 4px 6px -1px rgb(225 29 72 / 0.3), 0 2px 4px -2px rgb(225 29 72 / 0.3);
         }
         button:hover:not(:disabled) {
-            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 10px 15px -3px rgb(225 29 72 / 0.4);
+            background: linear-gradient(135deg, #f43f5e, #e11d48);
+        }
+        button:active:not(:disabled) {
+            transform: translateY(0);
         }
         button:active:not(:disabled) {
             transform: translateY(1px);
@@ -108,13 +131,18 @@
         }
         .secondary-btn {
             background: #1e2937;
-            color: #e2e8f0;
-            padding: 0.4rem 0.9rem;
-            font-size: 0.85rem;
+            color: #cbd5e1;
+            padding: 0.55rem 1rem;
+            font-size: 0.8rem;
+            font-weight: 600;
             margin-top: 0.5rem;
+            border-radius: 10px;
+            transition: all 0.15s ease;
         }
         .secondary-btn:hover:not(:disabled) {
             background: #334155;
+            color: #f1f5f9;
+            transform: translateY(-1px);
         }
         pre {
             white-space: pre-wrap;
@@ -136,21 +164,26 @@
         .system-status {
             display: flex;
             flex-wrap: wrap;
-            gap: 0.4rem;
-            margin: 0.6rem 0 0.9rem;
+            gap: 0.35rem;
+            margin: 0.5rem 0 1rem;
+            max-width: 1200px;
+            margin-left: auto;
+            margin-right: auto;
         }
         .badge {
-            font-size: 0.72rem;
-            padding: 0.2rem 0.55rem;
+            font-size: 0.68rem;
+            padding: 0.22rem 0.7rem;
             border-radius: 999px;
             border: 1px solid #334155;
-            background: #1e2937;
-            color: #cbd5e1;
+            background: rgba(30, 41, 59, 0.7);
+            color: #94a3b8;
             white-space: nowrap;
+            backdrop-filter: blur(6px);
+            transition: all 0.1s ease;
         }
-        .badge.ok { border-color: #166534; color: #86efac; }
-        .badge.warn { border-color: #854d0e; color: #fde047; }
-        .badge.amd { border-color: #e11d48; color: #fda4af; background: #1a0f14; }
+        .badge.ok { border-color: #166534; color: #4ade80; background: rgba(16, 185, 129, 0.1); }
+        .badge.warn { border-color: #854d0e; color: #facc15; background: rgba(234, 179, 8, 0.1); }
+        .badge.amd { border-color: #e11d48; color: #fda4af; background: rgba(225, 29, 72, 0.12); }
         .amd-highlight {
             color: #fda4af;
             font-weight: 500;
@@ -162,78 +195,116 @@
             margin-top: 0.5rem;
         }
         .demo-btn {
-            font-size: 0.72rem;
-            padding: 0.2rem 0.55rem;
-            background: #1e2937;
-            color: #94a3b8;
+            font-size: 0.68rem;
+            padding: 0.28rem 0.7rem;
+            background: rgba(30, 41, 59, 0.6);
+            color: #64748b;
             border: 1px solid #334155;
             border-radius: 999px;
             cursor: pointer;
+            transition: all 0.1s ease;
+            font-weight: 500;
         }
         .demo-btn:hover {
-            background: #334155;
+            background: #1e2937;
             color: #e2e8f0;
+            border-color: #475569;
+            transform: translateY(-1px);
         }
         .score-display {
             margin: 0.75rem 0;
-            padding: 0.75rem;
-            background: #020617;
-            border: 1px solid var(--panel-border);
-            border-radius: 8px;
+            padding: 1.25rem 1rem;
+            background: linear-gradient(145deg, #0f172a, #020617);
+            border: 1px solid #334155;
+            border-radius: 16px;
             text-align: center;
+            box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.2);
+            position: relative;
+            overflow: hidden;
+        }
+        .score-display::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 40%;
+            height: 200%;
+            background: linear-gradient(
+                120deg,
+                transparent,
+                rgba(255,255,255,0.06),
+                transparent
+            );
+            transform: skewX(-25deg);
+            animation: shimmer 2.5s infinite;
+        }
+        @keyframes shimmer {
+            100% { transform: translateX(300%); }
         }
         .score-value {
-            font-size: 2.1rem;
-            font-weight: 700;
+            font-size: 3.25rem;
+            font-weight: 800;
             line-height: 1;
-            color: var(--accent);
+            background: linear-gradient(90deg, #fda4af, #e11d48);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 4px 12px rgba(225, 29, 72, 0.25);
         }
         .score-label {
-            font-size: 0.8rem;
-            color: var(--text-muted);
-            margin-top: 0.1rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            color: #fda4af;
+            margin-top: 0.35rem;
+            text-transform: uppercase;
         }
         .progress {
-            height: 8px;
+            height: 10px;
             background: #1e2937;
             border-radius: 999px;
             overflow: hidden;
-            margin: 0.4rem 0;
+            margin: 0.6rem 0 0.3rem;
+            box-shadow: inset 0 1px 2px rgb(0 0 0 / 0.3);
         }
         .progress-bar {
             height: 100%;
-            background: linear-gradient(to right, #e11d48, #f43f5e);
-            transition: width 0.4s ease;
+            background: linear-gradient(to right, #e11d48, #fb7185);
+            transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            box-shadow: 0 0 8px rgba(225, 29, 72, 0.5);
         }
         .brief-content {
             background: #020617;
-            border: 1px solid var(--panel-border);
-            border-radius: 8px;
-            padding: 1rem;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 1.25rem;
             max-height: 65vh;
             overflow: auto;
-            font-size: 0.92rem;
-            line-height: 1.5;
+            font-size: 0.95rem;
+            line-height: 1.55;
+            box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.02);
         }
         .brief-content h3 {
-            margin: 1rem 0 0.25rem;
-            font-size: 0.95rem;
-            color: #e2e8f0;
+            margin: 1.1rem 0 0.35rem;
+            font-size: 0.92rem;
+            color: #f1f5f9;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            padding-bottom: 4px;
             border-bottom: 1px solid #1e2937;
-            padding-bottom: 0.15rem;
         }
         .brief-content h3:first-child { margin-top: 0; }
         .brief-content p {
-            margin: 0.2rem 0 0.6rem;
+            margin: 0.15rem 0 0.7rem;
             color: #cbd5e1;
         }
         .brief-content .pitch {
             font-style: italic;
-            color: #f1f5f9;
+            color: #f8fafc;
             background: #1e2937;
-            padding: 0.5rem 0.65rem;
-            border-radius: 6px;
-            margin: 0.3rem 0 0.8rem;
+            padding: 0.65rem 0.8rem;
+            border-radius: 10px;
+            margin: 0.5rem 0 0.9rem;
+            border-left: 3px solid #e11d48;
         }
         .spinner {
             display: inline-block;
@@ -256,9 +327,22 @@
     </style>
 </head>
 <body>
-    <h1>UnicornForge AI</h1>
-    <p class="subtitle">Turn a rough idea into a structured startup brief in one click.</p>
-    <p class="tagline">🚀 Unicorn Track-ready — leverage <span class="amd-highlight">AMD GPUs</span> + <span class="amd-highlight">Fireworks AI</span> for your hackathon project.</p>
+    <header style="max-width: 1200px; margin: 0 auto 1.5rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+        <div>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <div style="width: 42px; height: 42px; background: linear-gradient(135deg, #e11d48, #f43f5e); border-radius: 10px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(225, 29, 72, 0.3);">
+                    <span style="color: white; font-weight: 800; font-size: 22px; letter-spacing: -1px;">UF</span>
+                </div>
+                <div>
+                    <h1 style="margin: 0; font-size: 2rem; letter-spacing: -0.03em; background: linear-gradient(90deg, #f8fafc, #e2e8f0); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">UnicornForge AI</h1>
+                    <p class="subtitle" style="margin: 0; font-size: 0.95rem;">Turn a rough idea into a judge-ready startup brief in seconds.</p>
+                </div>
+            </div>
+        </div>
+        <div class="tagline" style="margin: 0; font-size: 0.8rem; padding: 6px 14px; background: rgba(225,29,72,0.1); border-radius: 999px; border: 1px solid rgba(225,29,72,0.2);">
+            🚀 <span class="amd-highlight">AMD</span> + <span class="amd-highlight">Fireworks</span> ready for the Unicorn Track
+        </div>
+    </header>
 
     <div id="system_status" class="system-status"></div>
 
@@ -266,11 +350,11 @@
         <section class="panel">
             <h2>Input</h2>
 
-            <div class="demo-presets">
-                <span style="font-size:0.7rem; color:#64748b; margin-right:0.3rem; align-self:center;">Quick demos:</span>
-                <button type="button" class="demo-btn" data-preset="ai-hack">AI hackathon co-pilot</button>
-                <button type="button" class="demo-btn" data-preset="amd-ml">AMD-powered edge ML</button>
-                <button type="button" class="demo-btn" data-preset="fireworks">Fireworks LLM studio</button>
+            <div class="demo-presets" style="margin-bottom: 0.25rem;">
+                <span style="font-size:0.68rem; color:#64748b; margin-right:0.5rem; align-self:center; font-weight:500;">Quick demos:</span>
+                <button type="button" class="demo-btn" data-preset="ai-hack">🚀 AI Hack Co-pilot</button>
+                <button type="button" class="demo-btn" data-preset="amd-ml">⚡ AMD Edge ML</button>
+                <button type="button" class="demo-btn" data-preset="fireworks">🔥 Fireworks Studio</button>
             </div>
 
             <label for="project_idea">Project idea *</label>
@@ -308,17 +392,21 @@
         <section class="panel">
             <h2>Generated Startup Brief</h2>
             <button id="copy_btn" type="button" class="secondary-btn">📋 Copy as Markdown</button>
-            <div id="download_area" class="download-buttons" style="margin: 0.5rem 0; display: none; flex-wrap: wrap; gap: 0.4rem;">
-                <button id="dl_full_kit" type="button" class="secondary-btn">⬇️ Full Starter Kit (.md)</button>
-                <button id="dl_readme" type="button" class="secondary-btn">⬇️ README.md</button>
-                <button id="dl_mvp" type="button" class="secondary-btn">⬇️ MVP Checklist</button>
-                <button id="dl_pitch" type="button" class="secondary-btn">⬇️ Pitch + Demo</button>
+            <div id="download_area" class="download-buttons" style="margin: 0.75rem 0; display: none; flex-wrap: wrap; gap: 0.45rem;">
+                <button id="dl_full_kit" type="button" class="secondary-btn">📦 Full Starter Kit</button>
+                <button id="dl_readme" type="button" class="secondary-btn">📄 README</button>
+                <button id="dl_mvp" type="button" class="secondary-btn">✅ MVP Checklist</button>
+                <button id="dl_pitch" type="button" class="secondary-btn">🎤 Pitch + Demo</button>
             </div>
             <div id="score_area" style="display:none;"></div>
             <div id="brief_content" class="brief-content" style="display:none;"></div>
             <pre id="output" style="display:none;">(Waiting for input...)</pre>
         </section>
     </div>
+
+    <footer style="max-width: 1200px; margin: 2.5rem auto 0; text-align: center; font-size: 0.7rem; color: #475569;">
+        Built for the AMD Hackathon • Unicorn Track • Powered by Fireworks AI + local AMD-tuned models
+    </footer>
 
     <script>
         // Determine API base:
@@ -562,14 +650,19 @@
             const factors = brief.score_factors || {};
             const factorsText = Object.entries(factors).map(([k,v]) => `${k}: ${v}`).join(" • ");
 
+            const scoreColor = score >= 8 ? '#22c55e' : score >= 6 ? '#eab308' : '#f87171';
+
             return `
                 <div class="score-display">
-                    <div style="font-size:0.75rem; color:#64748b; margin-bottom:0.15rem;">PREDICTED SUCCESS SCORE</div>
-                    <div class="score-value">${score.toFixed(1)} <span style="font-size:1rem; color:#64748b;">/ 10</span></div>
-                    <div class="score-label">${label}</div>
-                    <div class="progress"><div class="progress-bar" style="width:${pct}%"></div></div>
-                    ${factorsText ? `<div style="font-size:0.7rem; color:#64748b; margin-top:0.25rem;">${factorsText}</div>` : ""}
-                    ${brief.model_source ? `<div style="font-size:0.65rem; color:#475569; margin-top:0.2rem;">Model: ${brief.model_source}</div>` : ""}
+                    <div style="font-size:0.65rem; color:#64748b; margin-bottom:0.1rem; letter-spacing:1px;">PREDICTED SUCCESS SCORE</div>
+                    <div style="display:flex; align-items:baseline; justify-content:center; gap:6px;">
+                        <div class="score-value" style="font-size:3.5rem; color:${scoreColor};">${score.toFixed(1)}</div>
+                        <div style="font-size:1.1rem; color:#64748b; font-weight:500;">/ 10</div>
+                    </div>
+                    <div class="score-label" style="color:${scoreColor}; font-weight:700; letter-spacing:0.8px;">${label}</div>
+                    <div class="progress" style="margin-top:0.55rem;"><div class="progress-bar" style="width:${pct}%; background: linear-gradient(to right, ${scoreColor}, #fff);"></div></div>
+                    ${factorsText ? `<div style="font-size:0.68rem; color:#64748b; margin-top:0.35rem; opacity:0.9;">${factorsText}</div>` : ""}
+                    ${brief.model_source ? `<div style="font-size:0.6rem; color:#475569; margin-top:0.15rem;">${brief.model_source}</div>` : ""}
                 </div>
             `;
         }
@@ -678,11 +771,22 @@
                 const dlArea = document.getElementById("download_area");
                 if (dlArea) dlArea.style.display = "flex";
 
-                // Visual score display
+                // Visual score display with pop animation
                 const scoreArea = document.getElementById("score_area");
                 if (brief.success_score != null) {
                     scoreArea.style.display = "block";
                     scoreArea.innerHTML = renderScoreHTML(brief);
+                    // Add entrance animation
+                    const scoreEl = scoreArea.firstElementChild;
+                    if (scoreEl) {
+                        scoreEl.style.opacity = '0';
+                        scoreEl.style.transform = 'scale(0.92)';
+                        scoreEl.style.transition = 'all 420ms cubic-bezier(0.34,1.56,0.64,1)';
+                        requestAnimationFrame(() => {
+                            scoreEl.style.opacity = '1';
+                            scoreEl.style.transform = 'scale(1)';
+                        });
+                    }
                 } else {
                     scoreArea.style.display = "none";
                 }
