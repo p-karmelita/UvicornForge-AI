@@ -1,7 +1,15 @@
 from __future__ import annotations
 
-import pickle
+import sys
 from pathlib import Path
+
+# Pozwala uruchomić ten plik bezpośrednio z IDE (PyCharm / "Run") lub python training.py.
+# W normalnym użytkowaniu uruchamiaj:  cd backend && python train_model.py
+if __name__ == "__main__" and (__package__ is None or __package__ == ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    __package__ = "ml"
+
+import pickle
 
 import numpy as np
 import pandas as pd
