@@ -241,11 +241,11 @@ def map_request_to_features(
     team_level = (ts / max(1, medians.get("Team Size", 5))) if ts else 0
     fund_level = (tf / 1000 / max(1, medians.get("Total Funding ($)", 150))) if tf else 0
     overall_level = max(stage_multiplier, ambition, team_level, fund_level, 0.1)
-    overall_level = min(overall_level, 4.0)  # cap to avoid crazy values
+    overall_level = min(overall_level, 5.0)  # cap to avoid crazy values
 
     for k in ["Monthly Recurring Revenue ($)", "Valuation ($)", "Customer Base", "Social Media Followers", "Fireworks AI Credits Used ($, cumulative)"]:
         med = medians.get(k, 50)
-        # use at least the level-scaled value
+        # use at least the level-scaled value, stronger for high ambition
         numeric[k] = max(numeric[k], med * overall_level)
 
     # Honest defaults — only strong AMD if user or caller explicitly provides it.
